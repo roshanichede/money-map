@@ -124,3 +124,9 @@ def test_claude_reply_blocked_when_it_invents_a_number(loaded, monkeypatch):
     r = loaded.post("/api/chat", json={"question": "How much on Deliveroo in October?"}).json()
     assert r["source"] == "rules" and r["guardrail"].startswith("blocked")
     assert "£999.99" not in r["answer"]
+
+
+def test_unchanged_categories_show_zero_change(loaded):
+    comp = loaded.get("/api/summary/2026-09").json()["comparison"]
+    rent = next(c for c in comp["changes"] if c["category"] == "Rent & housing")
+    assert rent["delta_pence"] == 0 and rent["prev_pence"] == 85000

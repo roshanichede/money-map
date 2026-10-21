@@ -174,11 +174,13 @@ def build_answer(question: str, txns: list[Transaction]) -> dict:
         f = facts["comparison"]
         lines = [f"You spent {f['this_spend']} in {f['this_month']} vs {f['previous_spend']} in "
                  f"{f['previous_month']}: {f['difference']} {f['direction']}."]
-        for c in f["biggest_changes"][:3]:
+        for c in [c for c in f["biggest_changes"] if c["change"] not in ("£0.00",)][:3]:
             line = f"{c['category']}: {c['previous']} → {c['this']} ({c['change']})"
             if c["drivers"]:
                 d = c["drivers"][0]
-                line += f", mostly {d['merchant']} ({d['previous_count']} → {d['this_count']} payments, {d['change']})"
+                n = d["this_count"]
+                line += (f", mostly {d['merchant']} ({d['previous_count']} → {n} "
+                         f"{'payment' if n == 1 else 'payments'}, {d['change']})")
             lines.append(line + ".")
         answer = "\n".join(lines)
         top_cats = {c["category"] for c in changes[:3]}

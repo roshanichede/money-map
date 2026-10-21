@@ -80,8 +80,6 @@ def compare_months(txns: list[Transaction], month: str, previous: str) -> dict:
         a = cur_cat.get(cat, {"spend_pence": 0, "count": 0})
         b = prev_cat.get(cat, {"spend_pence": 0, "count": 0})
         delta = a["spend_pence"] - b["spend_pence"]
-        if delta == 0:
-            continue
         # merchants driving the change within this category
         cur_m = {r["merchant"]: r for r in by_merchant([t for t in cur if t.category == cat], 50)}
         prev_m = {r["merchant"]: r for r in by_merchant([t for t in prev if t.category == cat], 50)}

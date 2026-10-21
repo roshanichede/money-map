@@ -3,6 +3,7 @@ import csv
 import io
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,6 +65,19 @@ async def upload(files: list[UploadFile] = File(...), session: Session = Depends
         results.append({"filename": up.filename, "ok": True, "format": up.source_format, "rows_read": up.rows_read,
                         "rows_added": up.rows_added, "duplicates_skipped": up.duplicates_skipped,
                         "reconciled": up.reconciled, "reconciliation_note": up.reconciliation_note})
+    return {"results": results}
+
+
+@app.post("/api/demo")
+def load_demo(session: Session = Depends(get_session)):
+    """Load the synthetic sample statements so the app can be tried without real data."""
+    sample_dir = Path(__file__).resolve().parent.parent / "sample_data"
+    results = []
+    for name in ("lloyds_export_1.csv", "lloyds_export_2.csv", "lloyds_statement_2026-09.pdf"):
+        path = sample_dir / name
+        if path.exists():
+            up = import_file(session, name, path.read_bytes())
+            results.append({"filename": name, "rows_added": up.rows_added, "reconciled": up.reconciled})
     return {"results": results}
 
 
