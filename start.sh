@@ -7,8 +7,22 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 # --- backend ---
 cd "$ROOT/backend"
 if [ ! -d .venv ]; then
-  echo "Setting up the Python environment (first run only)…"
-  python3 -m venv .venv
+  PY=""
+  for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+    if command -v "$candidate" >/dev/null && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then
+      PY="$candidate"; break
+    fi
+  done
+  if [ -z "$PY" ]; then
+    echo "MoneyMap needs Python 3.10 or newer. On a Mac: brew install python@3.12" >&2
+    exit 1
+  fi
+  if ! command -v npm >/dev/null; then
+    echo "MoneyMap needs Node.js 20 or newer. On a Mac: brew install node" >&2
+    exit 1
+  fi
+  echo "Setting up the Python environment with $PY (first run only)…"
+  "$PY" -m venv .venv
   .venv/bin/pip install -q --upgrade pip
   .venv/bin/pip install -q -r requirements.txt
 fi

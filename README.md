@@ -19,7 +19,7 @@ Built because Lloyds doesn't email transaction alerts, has no personal API, and 
 
 ## Run it
 
-Needs Python 3.11+ and Node 20+.
+Needs Python 3.10+ and Node 20+ (on a Mac: `brew install python@3.12 node`).
 
 ```bash
 ./start.sh            # first run installs everything; then open http://localhost:3000
