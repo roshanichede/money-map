@@ -67,8 +67,8 @@ The public demo runs on three free services. Real statements are best kept on yo
 | Part | Service | Settings |
 |---|---|---|
 | Database | [Neon](https://neon.tech) Postgres | Create a project (region: Frankfurt). Copy the connection string. |
-| API | [Render](https://render.com) web service | New → Blueprint → this repo (uses `render.yaml`). Set `DATABASE_URL` to the Neon string and `INTERNAL_API_SECRET` to a long random value. |
-| Website | [Vercel](https://vercel.com) | Import this repo, Root Directory `frontend`. Environment: `API_URL` (the Render URL), `INTERNAL_API_SECRET` (same value), `AUTH_SECRET` (`openssl rand -base64 32`), `DEMO_SITE=1`. |
+| API | [Render](https://render.com) web service | New → Blueprint → this repo (uses `render.yaml`). Paste the Neon string as `DATABASE_URL`; Render generates `INTERNAL_API_SECRET`. |
+| Website | [Vercel](https://vercel.com) | Import this repo, Root Directory `frontend`. Environment: `API_URL` (the Render URL), `INTERNAL_API_SECRET` (copied from Render), `DEMO_SITE=1`. The sign-in key is derived from that secret unless `AUTH_SECRET` is set. |
 
 Notes: Render's free API sleeps after 15 minutes without visits, so the first request can take up to a minute. Uploads through Vercel are limited to about 4.5 MB per request. Tables are created on first start; `TEST_DATABASE_URL=postgresql+psycopg://... pytest` runs the test suite against Postgres.
 
