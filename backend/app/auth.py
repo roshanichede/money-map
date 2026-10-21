@@ -62,3 +62,15 @@ def current_user(request: Request, session: Session = Depends(get_session)) -> U
     if not email or "@" not in email:
         raise HTTPException(401, "Not signed in.")
     return _get_or_create(session, email, unquote(request.headers.get("x-user-name", ""))[:255])
+
+
+def internal_only(request: Request) -> None:
+    """Sign-up and password checks may only come from the Next.js server, never straight from a browser."""
+    secret = os.environ.get("INTERNAL_API_SECRET")
+    sent = request.headers.get("x-internal-secret", "")
+    if not secret or not hmac.compare_digest(sent.encode(), secret.encode()):
+        raise HTTPException(403, "Not allowed.")
+
+
+def find_or_create(session: Session, email: str, name: str) -> User:
+    return _get_or_create(session, email, name)

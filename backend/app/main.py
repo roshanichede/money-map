@@ -15,14 +15,15 @@ from sqlalchemy.orm import Session
 
 from . import chat
 from .accounts import TYPE_LABELS
-from .auth import current_user, login_mode
+from .auth import current_user, find_or_create, internal_only, login_mode
+from .passwords import MIN_LENGTH, check_password, hash_password, throttle
 from .categories import CATEGORIES
 from .db import get_session, init_db
 from .importer import AccountChoiceError, import_file
 from .insights import (all_transactions, by_category, by_merchant, categorised_rate, compare_months, earnings,
                        highlights, in_month, months_overview, totals, txn_dict)
 from . import learning, teach
-from .models import ACCOUNT_TYPES, Account, Dismissed, MerchantRule, Rule, Transaction, Upload, User
+from .models import ACCOUNT_TYPES, Account, Credential, Dismissed, MerchantRule, Rule, Transaction, Upload, User
 from .parsers import ParseError
 from .recurring import detect_recurring
 from .transfers import link_transfers, unlink_account
@@ -66,6 +67,59 @@ def health():
 def me(user: User = Depends(current_user)):
     return {"email": None if user.email == "local@moneymap" else user.email, "name": user.name,
             "login_mode": login_mode()}
+
+
+# ---------- email + password accounts (called by the Next.js server only) ----------
+
+class SignUp(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+
+
+class SignIn(BaseModel):
+    email: str
+    password: str
+
+
+def _email(raw: str) -> str:
+    email = raw.strip().lower()
+    if len(email) > 254 or "@" not in email or "." not in email.split("@")[-1] or " " in email:
+        raise HTTPException(400, "Enter a valid email address.")
+    return email
+
+
+@app.post("/api/account/signup", dependencies=[Depends(internal_only)])
+def signup(body: SignUp, session: Session = Depends(get_session)):
+    email = _email(body.email)
+    if len(body.password) < MIN_LENGTH:
+        raise HTTPException(400, f"Use at least {MIN_LENGTH} characters for your password.")
+    if len(body.password) > 200:
+        raise HTTPException(400, "That password is too long.")
+    existing = session.scalar(select(User).where(User.email == email))
+    if existing:
+        has_password = session.scalar(select(Credential).where(Credential.user_id == existing.id))
+        raise HTTPException(409, "There's already an account with this email. Sign in instead."
+                            if has_password else
+                            "This email already signs in with Google. Use “Continue with Google”.")
+    user = find_or_create(session, email, body.name.strip()[:255] or email.split("@")[0])
+    session.add(Credential(user_id=user.id, password_hash=hash_password(body.password)))
+    session.commit()
+    return {"email": user.email, "name": user.name}
+
+
+@app.post("/api/account/signin", dependencies=[Depends(internal_only)])
+def signin(body: SignIn, session: Session = Depends(get_session)):
+    email = body.email.strip().lower()
+    if throttle.blocked(email):
+        raise HTTPException(429, "Too many attempts. Wait 15 minutes and try again.")
+    user = session.scalar(select(User).where(User.email == email))
+    cred = user and session.scalar(select(Credential).where(Credential.user_id == user.id))
+    if not cred or not check_password(body.password, cred.password_hash):
+        throttle.fail(email)
+        raise HTTPException(401, "That email and password don't match.")
+    throttle.clear(email)
+    return {"email": user.email, "name": user.name}
 
 
 @app.get("/api/categories")
@@ -382,7 +436,7 @@ def delete_all(user: User = Depends(current_user), session: Session = Depends(ge
         "transactions": session.scalar(select(func.count()).select_from(Transaction).where(Transaction.user_id == user.id)),
         "accounts": session.scalar(select(func.count()).select_from(Account).where(Account.user_id == user.id)),
     }
-    for model in (Transaction, MerchantRule, Rule, Dismissed, Upload, Account):
+    for model in (Transaction, MerchantRule, Rule, Dismissed, Upload, Account):  # the login itself is kept
         session.execute(delete(model).where(model.user_id == user.id))
     session.commit()
     return {"deleted": counts}

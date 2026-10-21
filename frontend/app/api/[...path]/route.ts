@@ -1,6 +1,6 @@
 /**
  * Every /api/* call from the browser lands here and is forwarded to the FastAPI backend.
- * With Google login on, this is where identity is attached: the signed-in user's email plus a shared
+ * With sign-in on, this is where identity is attached: the signed-in user's email plus a shared
  * secret the backend checks, so the browser can never claim to be someone else.
  */
 import { currentUser, loginEnabled } from "@/auth";
@@ -11,6 +11,10 @@ const PASS_RESPONSE = ["content-type", "content-disposition"];
 
 async function forward(req: Request, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
+  if (path[0] === "account") {
+    // Sign-up and password checks are server-to-server only (see auth.ts), never via this proxy.
+    return Response.json({ detail: "Not found." }, { status: 404 });
+  }
   const headers = new Headers();
   for (const h of PASS_REQUEST) {
     const v = req.headers.get(h);

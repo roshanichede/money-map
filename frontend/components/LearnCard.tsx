@@ -14,6 +14,7 @@ export function LearnCard({ categories, refreshKey, onTaught }: Props) {
   const [category, setCategory] = useState("");
   const [scope, setScope] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const load = useCallback(() => {
     api.questions().then((d) => { setData(d); setCategory(""); setScope(0); }).catch(() => setData(null));
@@ -22,6 +23,15 @@ export function LearnCard({ categories, refreshKey, onTaught }: Props) {
 
   const q = data?.items[0];
   if (!data || !q) return null;
+  if (!open) {
+    return (
+      <button className="learn-banner" onClick={() => setOpen(true)}>
+        <span className="learn-badge num">{data.total}</span>
+        <span><b>Help MoneyMap sort the rest</b><span className="muted">One answer sorts every payment like it.</span></span>
+        <span className="btn btn-primary">Start</span>
+      </button>
+    );
+  }
 
   const scopes: { label: string; spec: RuleSpec }[] = [
     { label: q.word ? `Only ${q.name}, when the note says “${q.word}”` : q.spec.payee ? `Only ${q.name}, when there's no note` : `Every ${q.name} payment`, spec: q.spec },
@@ -56,7 +66,9 @@ export function LearnCard({ categories, refreshKey, onTaught }: Props) {
     <section className="card learn-card" aria-labelledby="learn-h">
       <div className="card-head">
         <h2 id="learn-h">Help MoneyMap learn</h2>
-        <p>{data.total === 1 ? "1 question" : `${data.total} questions, biggest amounts first`}</p>
+        <button className="btn-link small" onClick={() => setOpen(false)}>
+          {data.total === 1 ? "1 question" : `${data.total} questions`}, biggest first. Close
+        </button>
       </div>
       <p className="learn-q">{q.question}</p>
       <p className="muted small" style={{ margin: "-4px 0 8px" }}>

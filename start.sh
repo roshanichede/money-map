@@ -9,24 +9,24 @@ ENV_FILE="$ROOT/.env"
 if [ -f "$ENV_FILE" ]; then set -a; source "$ENV_FILE"; set +a; fi
 if [ -f "$ROOT/backend/.env" ]; then set -a; source "$ROOT/backend/.env"; set +a; fi  # older setups
 
-# Google login needs two shared secrets; make them once so only the Google ID/secret have to be pasted.
-if [ -n "${AUTH_GOOGLE_ID:-}" ]; then
-  [ -f "$ENV_FILE" ] || cp "$ROOT/.env.example" "$ENV_FILE"
-  for name in AUTH_SECRET INTERNAL_API_SECRET; do
-    if [ -z "${!name:-}" ]; then
-      value="$(openssl rand -base64 32 | tr -d '\n')"
-      if grep -q "^$name=" "$ENV_FILE"; then
-        sed -i.bak "s|^$name=.*|$name=$value|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-      else
-        echo "$name=$value" >> "$ENV_FILE"
-      fi
-      export "$name=$value"
-      echo "Generated $name in .env"
+# Sign-in needs two shared secrets; make them once and keep them in .env.
+[ -f "$ENV_FILE" ] || cp "$ROOT/.env.example" "$ENV_FILE"
+for name in AUTH_SECRET INTERNAL_API_SECRET; do
+  if [ -z "${!name:-}" ]; then
+    value="$(openssl rand -base64 32 | tr -d '\n')"
+    if grep -q "^$name=" "$ENV_FILE"; then
+      sed -i.bak "s|^$name=.*|$name=$value|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+    else
+      echo "$name=$value" >> "$ENV_FILE"
     fi
-  done
-  echo "Google login is ON."
+    export "$name=$value"
+    echo "Generated $name in .env"
+  fi
+done
+if [ -n "${AUTH_GOOGLE_ID:-}" ]; then
+  echo "Sign-in: email + password, and Google."
 else
-  echo "Local mode: no login (add AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET to .env to turn Google login on)."
+  echo "Sign-in: email + password (add AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET to .env for Google too)."
 fi
 
 # --- backend ---

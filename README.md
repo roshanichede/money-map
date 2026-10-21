@@ -19,7 +19,7 @@ Built because Lloyds doesn't email transaction alerts, has no personal API, and 
 | **Regular payments** | Weekly / monthly / quarterly / yearly charges with stable amounts, and when the next one is due. |
 | **Plain-English summary** | Each month opens with a sentence: what you spent, how it compares, and what drove it. |
 | **Ask your money** | Chat answers are calculated from your transactions first. With an API key, Claude words them, and any £ figure or % it writes that isn't in the calculated facts gets the reply thrown out. |
-| **Google login** | Optional. Each person sees only their own data. Without it, the app runs in local mode for one person. |
+| **Accounts** | Create an account with email and password (stored only as a salted scrypt hash, with repeated wrong guesses slowed down), or add "Continue with Google". Each person sees only their own data. |
 
 ## How data is stored
 
@@ -41,16 +41,16 @@ Click **Try it with sample data** to explore with three synthetic accounts (curr
 
 Settings live in `.env` at the project root: `cp .env.example .env`.
 
-### Turn on Google login
+### Add Google sign-in (optional)
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) → create a project → **APIs & Services → OAuth consent screen**: choose *External*, fill in the app name and your email, and add yourself as a test user.
 2. **APIs & Services → Credentials → Create credentials → OAuth client ID**, type *Web application*.
    Authorised redirect URI: `http://localhost:3000/api/auth/callback/google`
 3. Paste the client ID and secret into `.env` as `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`, then run `./start.sh`. It generates `AUTH_SECRET` and `INTERNAL_API_SECRET` for you.
 
-The first person to sign in keeps anything already imported in local mode. Everyone after starts empty.
+The first account created keeps anything imported before sign-in existed. Everyone after starts empty.
 
-**How login protects the data:** the browser only talks to Next.js. Next.js signs you in with Google (Auth.js) and forwards each API call to FastAPI with your email plus a shared secret. FastAPI rejects any request without that secret, so identity can't be forged from the browser.
+**How sign-in protects the data:** the browser only talks to Next.js. Next.js signs you in (Auth.js: email + password checked by the backend, or Google) and forwards each API call to FastAPI with your email plus a shared secret. FastAPI rejects any request without that secret, so identity can't be forged from the browser.
 
 ### Claude-worded chat answers
 

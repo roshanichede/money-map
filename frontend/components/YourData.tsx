@@ -80,7 +80,7 @@ export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted,
             <li><Check /><span>
               <b>{loginEnabled ? "Each person sees only their own data." : "Everything stays on this computer."}</b>{" "}
               {loginEnabled
-                ? "You sign in with Google, and every transaction is tied to your account."
+                ? "You sign in, and every transaction is tied to your account. Passwords are only stored as a secure hash."
                 : "Transactions are saved in a database file next to the app. No login, no cloud."}
             </span></li>
             <li><Check /><span><b>The chat sends Claude only calculated facts</b> (totals, merchant names, dates), and only if an API key is set. Never your statements or account numbers.</span></li>

@@ -12,10 +12,10 @@ import { Highlights } from "./Highlights";
 import { LearnCard } from "./LearnCard";
 import { IconChat, IconUpload } from "./icons";
 import { MoneyIn } from "./MoneyIn";
+import { MonthHero } from "./MonthHero";
 import { MonthsChart } from "./MonthsChart";
 import { RecurringList } from "./RecurringList";
 import { Sidebar, VIEWS, type View } from "./Sidebar";
-import { Stats, SummarySentence } from "./Summary";
 import { Transactions } from "./Transactions";
 import { UploadDialog, Welcome } from "./UploadDialog";
 import { YourData } from "./YourData";
@@ -137,19 +137,17 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
   } else if (view === "overview") {
     body = summary && monthRow && summary.month === overviewMonth ? (
       <div className="stack">
-        <SummarySentence summary={summary} month={monthRow} partial={isUnfinished(monthRow, months)} />
-        <Stats summary={summary} earnings={earnings} recurringMonthly={recurring?.active_monthly_total_pence ?? 0}
-               partial={isUnfinished(monthRow, months)} />
+        <MonthHero summary={summary} month={monthRow} partial={isUnfinished(monthRow, months)} earnings={earnings}
+                   recurring={recurring} onSeeBills={() => go("regular")} />
         <LearnCard categories={categories} refreshKey={refreshKey} onTaught={(m) => { setToast(m); refresh(); }} />
-        <div className="grid-2">
-          <Highlights items={summary.highlights} onCategory={(c) => { setCategory(c); go("transactions"); }} />
-          {earnings && <MoneyIn earnings={earnings}
-                                onSeePayer={(name) => { setCategory(null); setMonth("all"); go("transactions"); setSearch(name); }} />}
-        </div>
         <div className="grid-2-wide">
-          <CategoryBars summary={summary} onSelect={(c) => { setCategory(c); go("transactions"); }} />
-          {recurring && <RecurringList items={recurring.items} monthlyTotal={recurring.active_monthly_total_pence}
-                                       limit={6} onSeeAll={() => go("regular")} />}
+          <CategoryBars summary={summary} partial={isUnfinished(monthRow, months)}
+                        onSelect={(c) => { setCategory(c); go("transactions"); }} />
+          <div className="stack">
+            <Highlights items={summary.highlights} onCategory={(c) => { setCategory(c); go("transactions"); }} />
+            {earnings && <MoneyIn earnings={earnings}
+                                  onSeePayer={(name) => { setCategory(null); setMonth("all"); go("transactions"); setSearch(name); }} />}
+          </div>
         </div>
         <MonthsChart months={months} selected={overviewMonth!} onSelect={setMonth} />
         <Transactions month={overviewMonth!} accountId={accountId} accounts={accounts} category={null} onCategory={() => {}}

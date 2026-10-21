@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api, type Account, type ScopeOption, type Txn } from "@/lib/api";
 import { categoryLabel, KIND_TAG, money, shortDate } from "@/lib/format";
+import { CategoryIcon } from "./CategoryIcon";
 
 type Props = {
   month: string;
@@ -112,7 +113,7 @@ export function Transactions(props: Props) {
         </div>
       )}
       <div className="table-scroll">
-        <table className="table">
+        <table className={`table${limit ? " compact" : ""}`}>
           <thead>
             <tr>
               <th className="col-date">Date</th>
@@ -126,12 +127,15 @@ export function Transactions(props: Props) {
             {rows.slice(0, shown).map((t) => (
               <tr key={t.id}>
                 <td className="num quiet nowrap">{shortDate(t.date)}</td>
-                <td>
+                <td className="payee-cell">
+                  <CategoryIcon category={t.category} size={16} />
+                  <span className="payee-text">
                   {t.merchant} {t.is_transfer && <span className="tag" title="Matched with a payment in another of your accounts">transfer</span>}
                   {!t.is_transfer && KIND_TAG[t.kind] && (
                     <span className={`tag tag-${t.kind}`} title={KIND_TAG[t.kind]!.title}>{KIND_TAG[t.kind]!.label}</span>
                   )}
-                  <span className="sub" title={t.description}>{t.description}</span>
+                  {!limit && <span className="sub" title={t.description}>{t.description}</span>}
+                  </span>
                 </td>
                 {showAccount && <td className="quiet small acct-cell" title={names.get(t.account_id)}>{names.get(t.account_id)}</td>}
                 <td>

@@ -14,30 +14,31 @@ const MARK: Record<Highlight["kind"], string> = {
 
 type Props = { items: Highlight[]; onCategory: (category: string) => void };
 
-/** The few things worth knowing about the month, each one plain sentence. */
+/** The few things worth knowing about the month: at most three, one short line each. */
 export function Highlights({ items, onCategory }: Props) {
+  const shown = items.filter((h) => h.kind !== "top").slice(0, 3);
   return (
     <section className="card" aria-labelledby="hl-h">
       <div className="card-head">
-        <h2 id="hl-h">What stands out</h2>
+        <h2 id="hl-h">Worth knowing</h2>
       </div>
-      {items.length === 0 ? (
+      {shown.length === 0 ? (
         <p className="quiet">Nothing unusual this month.</p>
       ) : (
         <ul className="highlights">
-          {items.map((h, i) => (
-            <li key={i} className={`hl hl-${h.kind}`}>
-              <span className="hl-mark" aria-hidden="true">{MARK[h.kind]}</span>
-              <span>
-                {h.text}{" "}
-                {h.category && (
-                  <button className="btn-link small" onClick={() => onCategory(h.category!)}>
-                    {h.kind === "unsorted" ? "Sort them" : "See payments"}
-                  </button>
-                )}
-              </span>
-            </li>
-          ))}
+          {shown.map((h, i) => {
+            const body = (
+              <>
+                <span className="hl-mark" aria-hidden="true">{MARK[h.kind]}</span>
+                <span>{h.text}</span>
+              </>
+            );
+            return (
+              <li key={i} className={`hl hl-${h.kind}`}>
+                {h.category ? <button className="hl-btn" onClick={() => onCategory(h.category!)}>{body}</button> : <div className="hl-btn">{body}</div>}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

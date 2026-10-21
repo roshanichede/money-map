@@ -11,7 +11,7 @@ type Props = { earnings: Earnings; onSeePayer: (name: string) => void };
 export function MoneyIn({ earnings, onSeePayer }: Props) {
   const [explain, setExplain] = useState(false);
   const first = earnings.months[0]?.month;
-  const sources = earnings.sources.slice(0, 5);
+  const sources = earnings.sources.slice(0, 4);
   return (
     <section className="card" aria-labelledby="in-h">
       <div className="card-head">
