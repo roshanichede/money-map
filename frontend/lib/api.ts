@@ -139,6 +139,7 @@ export type UploadResult = {
   reconciled?: "ok" | "mismatch" | "not_checked";
   reconciliation_note?: string;
   account?: string | null;
+  account_id?: number | null;
   account_match?: string | null;
   transfers_matched?: number;
 };

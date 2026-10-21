@@ -460,3 +460,25 @@ form.auth-form { display: grid; gap: 14px; }
   .auth-story h1 { font-size: 26px; }
   .sorter-arrow { display: none; }
 }
+
+/* ---------- upload queue ---------- */
+.queue { margin-top: 14px; display: grid; gap: 8px; }
+.queue-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; }
+.queue-bar { height: 4px; border-radius: 2px; background: var(--sunken); overflow: hidden; }
+.queue-bar span { display: block; height: 100%; background: var(--accent); transition: width 200ms ease; }
+.queue-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; display: grid; gap: 2px; }
+.queue-list li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 4px; border-radius: var(--r-ctl); font-size: 13px; }
+.queue-list li.q-reading { background: var(--accent-wash); }
+.q-icon { display: grid; place-items: center; width: 20px; height: 20px; color: var(--muted); }
+.q-done .q-icon { color: var(--good); }
+.q-failed .q-icon { color: var(--bad); }
+.q-main { display: grid; min-width: 0; }
+.q-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-detail { color: var(--ink-2); font-size: 12.5px; }
+.q-failed .q-detail { color: var(--bad); }
+.q-warn { color: var(--bad); }
+.q-remove { padding: 2px 6px; }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--accent-wash); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } .queue-bar span { transition: none; } }
+.dialog-foot { align-items: center; gap: 12px; }

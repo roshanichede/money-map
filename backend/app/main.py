@@ -159,7 +159,8 @@ def _upload_result(up: Upload, session: Session) -> dict:
     return {"filename": up.filename, "ok": True, "format": up.source_format, "rows_read": up.rows_read,
             "rows_added": up.rows_added, "duplicates_skipped": up.duplicates_skipped,
             "reconciled": up.reconciled, "reconciliation_note": up.reconciliation_note,
-            "account": acct.name if acct else None, "account_match": getattr(up, "account_match", None),
+            "account": acct.name if acct else None, "account_id": acct.id if acct else None,
+            "account_match": getattr(up, "account_match", None),
             "transfers_matched": getattr(up, "transfers_matched", 0)}
 
 

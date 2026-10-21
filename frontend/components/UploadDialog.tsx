@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, type Account, type AccountType, type UploadResult, type UploadTarget } from "@/lib/api";
 import { plural } from "@/lib/format";
@@ -51,12 +51,150 @@ function DropZone({ onFiles, busy }: { onFiles: (f: File[]) => void; busy: boole
     >
       <IconUpload size={22} />
       <strong>Drop your bank statements</strong>
-      <span className="quiet small">CSV, Excel or PDF, from UK banks (Lloyds, Barclays, HSBC, Monzo…) and Indian banks (HDFC, ICICI, SBI, Axis, Kotak…).</span>
+      <span className="quiet small">
+        As many files as you like: CSV, Excel or PDF, from UK banks (Lloyds, Barclays, HSBC, Monzo…) and Indian
+        banks (HDFC, ICICI, SBI, Axis, Kotak…). They&apos;re read one at a time.
+      </span>
       <input ref={ref} type="file" accept=".csv,.txt,.pdf,.xls,.xlsx,text/csv,application/pdf" multiple hidden
              onChange={(e) => { onFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-      <button type="button" className="btn" disabled={busy} onClick={() => ref.current?.click()}>
-        {busy ? "Reading…" : "Choose files"}
+      <button type="button" className="btn" onClick={() => ref.current?.click()}>
+        {busy ? "Add more files" : "Choose files"}
       </button>
+    </div>
+  );
+}
+
+// ---------- the upload queue: files go up one at a time, each with its own status ----------
+
+const MAX_BYTES = 10 * 1024 * 1024;
+type Status = "waiting" | "reading" | "done" | "failed";
+type Item = { id: string; file: File; status: Status; result?: UploadResult; error?: string; retryable?: boolean };
+
+const fileKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
+const sizeLabel = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+
+/** Runs uploads one after another. `target()` is read when each file starts, so a new account created by the
+ *  first file is reused for the rest. */
+function useUploadQueue(target: () => UploadTarget, onFileDone: (r: UploadResult) => void, onAllDone: () => void) {
+  const [items, setItems] = useState<Item[]>([]);
+  const running = useRef(false);
+  const queue = useRef<Item[]>([]);
+  const targetRef = useRef(target);
+  const doneRef = useRef({ onFileDone, onAllDone });
+  useEffect(() => { targetRef.current = target; doneRef.current = { onFileDone, onAllDone }; });
+
+  const update = (id: string, patch: Partial<Item>) => {
+    queue.current = queue.current.map((i) => (i.id === id ? { ...i, ...patch } : i));
+    setItems(queue.current);
+  };
+
+  const run = useCallback(async () => {
+    if (running.current) return;
+    running.current = true;
+    let didAny = false;
+    for (;;) {
+      const next = queue.current.find((i) => i.status === "waiting");
+      if (!next) break;
+      update(next.id, { status: "reading" });
+      try {
+        const res = (await api.upload([next.file], targetRef.current())).results[0];
+        if (res.ok) {
+          update(next.id, { status: "done", result: res });
+          doneRef.current.onFileDone(res);
+          didAny = true;
+        } else {
+          update(next.id, { status: "failed", error: res.error ?? "Couldn't read this file." });
+        }
+      } catch (e) {
+        const msg = (e as Error).message;
+        const tooLarge = /413|too large/i.test(msg);
+        // a dropped connection or a sleeping server is worth another go; an oversized file isn't
+        update(next.id, { status: "failed", error: tooLarge ? "This file is too large to upload here." : msg, retryable: !tooLarge });
+      }
+    }
+    running.current = false;
+    if (didAny) doneRef.current.onAllDone();
+  }, []);
+
+  const add = useCallback((files: File[]) => {
+    const known = new Set(queue.current.filter((i) => i.status !== "failed").map((i) => fileKey(i.file)));
+    const fresh: Item[] = [];
+    for (const f of files) {
+      if (known.has(fileKey(f))) continue; // the same file picked twice
+      known.add(fileKey(f));
+      const tooBig = f.size > MAX_BYTES;
+      fresh.push({ id: `${fileKey(f)}|${Date.now()}|${Math.random()}`, file: f,
+                   status: tooBig ? "failed" : "waiting", error: tooBig ? "Larger than 10 MB." : undefined });
+    }
+    if (!fresh.length) return;
+    queue.current = [...queue.current, ...fresh];
+    setItems(queue.current);
+    void run();
+  }, [run]);
+
+  const retry = (id: string) => { update(id, { status: "waiting", error: undefined }); void run(); };
+  const remove = (id: string) => { queue.current = queue.current.filter((i) => i.id !== id); setItems(queue.current); };
+  const clearFinished = () => { queue.current = queue.current.filter((i) => i.status === "waiting" || i.status === "reading"); setItems(queue.current); };
+  const busy = items.some((i) => i.status === "waiting" || i.status === "reading");
+  return { items, add, retry, remove, clearFinished, busy };
+}
+
+function QueueList({ items, onRetry, onRemove }: { items: Item[]; onRetry: (id: string) => void; onRemove: (id: string) => void }) {
+  if (!items.length) return null;
+  const done = items.filter((i) => i.status === "done").length;
+  const failed = items.filter((i) => i.status === "failed").length;
+  const current = items.findIndex((i) => i.status === "reading");
+  const added = items.reduce((n, i) => n + (i.result?.rows_added ?? 0), 0);
+  return (
+    <div className="queue">
+      <div className="queue-head">
+        <span>
+          {current >= 0 ? `Reading file ${current + 1} of ${items.length}` : `${done} of ${items.length} imported`}
+          {failed ? `, ${failed} couldn't be read` : ""}
+        </span>
+        <span className="muted small">{plural(added, "new transaction")}</span>
+      </div>
+      <div className="queue-bar" aria-hidden="true">
+        <span style={{ width: `${((done + failed) / items.length) * 100}%` }} />
+      </div>
+      <ul className="queue-list">
+        {items.map((i) => {
+          const r = i.result;
+          return (
+            <li key={i.id} className={`q-${i.status}`}>
+              <span className="q-icon" aria-hidden="true">
+                {i.status === "reading" ? <span className="spinner" /> : i.status === "done"
+                  ? (r?.reconciled === "mismatch" ? <Warn /> : <Check />)
+                  : i.status === "failed" ? <Warn /> : <Dash />}
+              </span>
+              <span className="q-main">
+                <span className="q-name" title={i.file.name}>{i.file.name}</span>
+                <span className="q-detail">
+                  {i.status === "waiting" && `Waiting · ${sizeLabel(i.file.size)}`}
+                  {i.status === "reading" && "Reading…"}
+                  {i.status === "failed" && i.error}
+                  {i.status === "done" && r && (
+                    <>
+                      {plural(r.rows_added ?? 0, "new transaction")}{r.account ? ` → ${r.account}` : ""}
+                      {r.duplicates_skipped ? `, ${r.duplicates_skipped} already imported` : ""}
+                      {r.transfers_matched ? `, ${plural(r.transfers_matched, "transfer")} matched` : ""}
+                      {r.reconciled === "mismatch" && <span className="q-warn"> {r.reconciliation_note}</span>}
+                    </>
+                  )}
+                </span>
+              </span>
+              {i.status === "failed" && i.retryable && (
+                <button className="btn-link small" onClick={() => onRetry(i.id)}>Try again</button>
+              )}
+              {(i.status === "waiting" || i.status === "failed") && (
+                <button className="btn btn-ghost q-remove" onClick={() => onRemove(i.id)} aria-label={`Remove ${i.file.name}`}>
+                  <IconClose />
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -75,9 +213,21 @@ export function UploadDialog({ open, onClose, accounts, onImported, demo = false
   const [choice, setChoice] = useState("detect");
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<AccountType>("current");
-  const [busy, setBusy] = useState(false);
-  const [results, setResults] = useState<UploadResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const createdAccount = useRef<number | null>(null); // a new account made by the first file of a batch
+
+  const queue = useUploadQueue(
+    () => {
+      if (choice === "new") {
+        return createdAccount.current !== null
+          ? { kind: "existing", accountId: createdAccount.current }
+          : { kind: "new", name: newName.trim(), type: newType };
+      }
+      return choice === "detect" ? { kind: "detect" } : { kind: "existing", accountId: Number(choice) };
+    },
+    (r) => { if (choice === "new" && createdAccount.current === null && r.account_id) createdAccount.current = r.account_id; },
+    () => onImported(),
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -88,42 +238,33 @@ export function UploadDialog({ open, onClose, accounts, onImported, demo = false
 
   if (!open) return null;
 
-  async function send(files: File[]) {
+  function add(files: File[]) {
     if (!files.length) return;
-    let target: UploadTarget = { kind: "detect" };
-    if (choice === "new") {
-      if (!newName.trim()) { setError("Give the new account a name first."); return; }
-      target = { kind: "new", name: newName.trim(), type: newType };
-    } else if (choice !== "detect") {
-      target = { kind: "existing", accountId: Number(choice) };
-    }
-    setBusy(true);
+    if (choice === "new" && !newName.trim()) { setError("Give the new account a name first."); return; }
     setError(null);
-    try {
-      const r = await api.upload(files, target);
-      setResults(r.results);
-      onImported();
-      if (choice === "new") { setChoice("detect"); setNewName(""); }
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    if (!queue.busy) createdAccount.current = null;
+    queue.add(files);
+  }
+
+  function close() {
+    if (!queue.busy) queue.clearFinished();
+    onClose();
   }
 
   return (
     <>
-      <div className="scrim" onClick={onClose} />
+      <div className="scrim" onClick={close} />
       <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="up-h">
         <div className="dialog-head">
           <h2 id="up-h">Add statements</h2>
-          <button className="btn btn-ghost" onClick={onClose} aria-label="Close"><IconClose /></button>
+          <button className="btn btn-ghost" onClick={close} aria-label="Close"><IconClose /></button>
         </div>
         {demo && <DemoNotice />}
-        <DropZone onFiles={send} busy={busy} />
+        <DropZone onFiles={add} busy={queue.busy} />
         <div className="field">
           <label htmlFor="up-account">Which account are these from?</label>
-          <select id="up-account" className="select" value={choice} onChange={(e) => setChoice(e.target.value)}>
+          <select id="up-account" className="select" value={choice} disabled={queue.busy}
+                  onChange={(e) => setChoice(e.target.value)}>
             <option value="detect">Work it out from the file</option>
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
             <option value="new">A new account…</option>
@@ -143,9 +284,10 @@ export function UploadDialog({ open, onClose, accounts, onImported, demo = false
           </div>
         )}
         {error && <div className="error-box" style={{ marginTop: 14 }}>{error}</div>}
-        {results && <UploadResults results={results} />}
+        <QueueList items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
         <div className="dialog-foot">
-          <button className="btn" onClick={onClose}>{results ? "Done" : "Cancel"}</button>
+          {queue.busy && <span className="muted small">You can close this; files keep uploading.</span>}
+          <button className="btn" onClick={close}>{queue.items.some((i) => i.status === "done") ? "Done" : "Close"}</button>
         </div>
       </div>
     </>
@@ -153,6 +295,7 @@ export function UploadDialog({ open, onClose, accounts, onImported, demo = false
 }
 
 export function Welcome({ onImported, demo = false }: { onImported: () => void; demo?: boolean }) {
+  const queue = useUploadQueue(() => ({ kind: "detect" }), () => {}, () => onImported());
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<UploadResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -180,7 +323,8 @@ export function Welcome({ onImported, demo = false }: { onImported: () => void; 
           </div>
         ) : (
           <>
-            <DropZone onFiles={(f) => f.length && run(() => api.upload(f))} busy={busy} />
+            <DropZone onFiles={(f) => f.length && queue.add(f)} busy={queue.busy} />
+            <QueueList items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
             <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
               <button className="btn-link" onClick={() => run(() => api.demo())} disabled={busy}>
                 Or try it with sample data (current account, savings and a credit card)
