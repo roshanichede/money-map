@@ -1,8 +1,11 @@
 """Generate synthetic Lloyds-format statements for demos and tests (no real data).
 
-Creates:
-  lloyds_export_1.csv, lloyds_export_2.csv  - overlapping CSV exports (newest first, like Lloyds)
-  lloyds_statement_2026-09.pdf               - a PDF statement in Lloyds' table layout
+Creates three accounts for one person:
+  lloyds_export_1.csv, lloyds_export_2.csv  - current account, two overlapping CSV exports (newest first)
+  lloyds_statement_2026-09.pdf               - the same current account's September PDF statement
+  lloyds_savings.csv                         - savings account fed by a monthly transfer from current
+  lloyds_credit_card.csv                     - credit card (purchases positive, like most card exports),
+                                               paid off monthly by direct debit from the current account
 Run:  python sample_data/generate.py
 """
 import csv
@@ -11,12 +14,41 @@ from datetime import date, timedelta
 from pathlib import Path
 
 OUT = Path(__file__).parent
-ACCOUNT, SORT = "12345678", "'30-99-50"
+ACCOUNT, SAVINGS, SORT = "12345678", "87654321", "'30-99-50"
 random.seed(42)
+START, END = date(2026, 5, 1), date(2026, 10, 20)
 
 
-def build_transactions(start: date, end: date, opening_pence: int):
-    rows = []  # (date, type, description, amount_pence)
+def card_purchases(start: date, end: date):
+    rng = random.Random(7)
+    rows = []  # (date, description, amount_pence) with purchases positive
+    shops = [("AMAZON.CO.UK*2K4LP0", 0.10, (899, 4599)), ("ASOS.COM LTD", 0.04, (1800, 6500)),
+             ("NANDOS LEICESTER", 0.06, (1450, 3800)), ("TRAINLINE.COM", 0.04, (1200, 5600)),
+             ("ODEON CINEMAS", 0.03, (1100, 2600)), ("ZARA UK LTD", 0.02, (2500, 7900))]
+    d = start
+    while d <= end:
+        for desc, p, (lo, hi) in shops:
+            if rng.random() < p:
+                rows.append((d, desc, rng.randint(lo, hi)))
+        d += timedelta(days=1)
+    return rows
+
+
+def card_repayments(purchases):
+    """Each month's card bill is paid in full on the 10th of the next month."""
+    totals: dict[tuple[int, int], int] = {}
+    for d, _, amt in purchases:
+        totals[(d.year, d.month)] = totals.get((d.year, d.month), 0) + amt
+    pays = []
+    for (y, m), total in sorted(totals.items()):
+        pay_day = date(y + (m == 12), m % 12 + 1, 10)
+        if pay_day <= END:
+            pays.append((pay_day, total))
+    return pays
+
+
+def build_transactions(start: date, end: date, opening_pence: int, extra=()):
+    rows = list(extra)  # (date, type, description, amount_pence)
     d = start
     while d <= end:
         dom = d.day
@@ -69,13 +101,13 @@ def build_transactions(start: date, end: date, opening_pence: int):
     return out
 
 
-def write_lloyds_csv(path: Path, txns):
+def write_lloyds_csv(path: Path, txns, account: str = ACCOUNT):
     with path.open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["Transaction Date", "Transaction Type", "Sort Code", "Account Number",
                     "Transaction Description", "Debit Amount", "Credit Amount", "Balance"])
         for d, typ, desc, amt, bal in reversed(txns):  # Lloyds exports newest first
-            w.writerow([d.strftime("%d/%m/%Y"), typ, SORT, ACCOUNT, desc,
+            w.writerow([d.strftime("%d/%m/%Y"), typ, SORT, account, desc,
                         f"{-amt / 100:.2f}" if amt < 0 else "",
                         f"{amt / 100:.2f}" if amt > 0 else "", f"{bal / 100:.2f}"])
 
@@ -136,9 +168,39 @@ def write_pdf(path: Path, txns, opening_pence: int):
     c.save()
 
 
+def write_card_csv(path: Path, purchases, repayments):
+    rows = [(d, desc, amt) for d, desc, amt in purchases]
+    rows += [(d + timedelta(days=1), "PAYMENT RECEIVED - THANK YOU", -amt) for d, amt in repayments]
+    rows.sort(key=lambda r: r[0], reverse=True)
+    with path.open("w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["Date", "Date entered", "Reference", "Description", "Amount"])
+        for i, (d, desc, amt) in enumerate(rows):
+            w.writerow([d.strftime("%d/%m/%Y"), d.strftime("%d/%m/%Y"), f"REF{900000 + i}", desc, f"{amt / 100:.2f}"])
+
+
+def build_savings(start: date, end: date, opening_pence: int):
+    rows, balance, d = [], opening_pence, start
+    while d <= end:
+        if d.day == 1 and d != start:
+            interest = round(balance * 0.035 / 12)
+            balance += interest
+            rows.append((d, "INT", "INTEREST (GROSS)", interest, balance))
+        if d.day == 27:
+            balance += 30_000
+            rows.append((d, "TFR", f"FROM A/C {ACCOUNT}", 30_000, balance))
+        d += timedelta(days=1)
+    return rows
+
+
 def main():
     opening = 182_340
-    txns = build_transactions(date(2026, 5, 1), date(2026, 10, 20), opening)
+    purchases = card_purchases(START, END)
+    repayments = card_repayments(purchases)
+    extra = [(d, "DD", "LLOYDS BANK PLC CREDIT CARD", -amt) for d, amt in repayments]
+    txns = build_transactions(START, END, opening, extra)
+    write_lloyds_csv(OUT / "lloyds_savings.csv", build_savings(START, END, 500_000), account=SAVINGS)
+    write_card_csv(OUT / "lloyds_credit_card.csv", purchases, repayments)
     # Two overlapping exports, each capped like Lloyds' download (export 2 starts mid-August).
     write_lloyds_csv(OUT / "lloyds_export_1.csv", [t for t in txns if t[0] <= date(2026, 8, 31)])
     write_lloyds_csv(OUT / "lloyds_export_2.csv", [t for t in txns if t[0] >= date(2026, 8, 15)])

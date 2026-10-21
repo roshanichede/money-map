@@ -1,28 +1,35 @@
-"""MoneyMap API."""
+"""MoneyMap API. Every route works on the signed-in user's data only (see auth.py)."""
 import csv
 import io
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from . import chat
+from .accounts import TYPE_LABELS
+from .auth import current_user, login_mode
 from .categories import CATEGORIES
 from .db import get_session, init_db
-from .importer import import_file
+from .importer import AccountChoiceError, import_file
 from .insights import (all_transactions, by_category, by_merchant, categorised_rate, compare_months, in_month,
                        months_overview, totals, txn_dict)
-from .models import MerchantRule, Transaction, Upload
+from .models import ACCOUNT_TYPES, Account, MerchantRule, Transaction, Upload, User
 from .parsers import ParseError
 from .recurring import detect_recurring
+from .transfers import link_transfers, unlink_account
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+SAMPLE_DIR = Path(__file__).resolve().parent.parent / "sample_data"
+SAMPLE_FILES = ("lloyds_export_1.csv", "lloyds_export_2.csv", "lloyds_statement_2026-09.pdf",
+                "lloyds_savings.csv", "lloyds_credit_card.csv")
+
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -30,7 +37,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="MoneyMap API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="MoneyMap API", version="0.2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","),
@@ -38,9 +45,25 @@ app.add_middleware(
 )
 
 
+def _own_account(session: Session, user: User, account_id: int | None) -> int | None:
+    if account_id is None:
+        return None
+    acct = session.get(Account, account_id)
+    if acct is None or acct.user_id != user.id:
+        raise HTTPException(404, "Account not found.")
+    return account_id
+
+
 @app.get("/api/health")
 def health():
-    return {"ok": True, "chat_model": chat.MODEL if os.environ.get("ANTHROPIC_API_KEY") else None}
+    return {"ok": True, "chat_model": chat.MODEL if os.environ.get("ANTHROPIC_API_KEY") else None,
+            "login_mode": login_mode()}
+
+
+@app.get("/api/me")
+def me(user: User = Depends(current_user)):
+    return {"email": None if user.email == "local@moneymap" else user.email, "name": user.name,
+            "login_mode": login_mode()}
 
 
 @app.get("/api/categories")
@@ -48,8 +71,21 @@ def categories():
     return CATEGORIES
 
 
+def _upload_result(up: Upload, session: Session) -> dict:
+    acct = session.get(Account, up.account_id) if up.account_id else None
+    return {"filename": up.filename, "ok": True, "format": up.source_format, "rows_read": up.rows_read,
+            "rows_added": up.rows_added, "duplicates_skipped": up.duplicates_skipped,
+            "reconciled": up.reconciled, "reconciliation_note": up.reconciliation_note,
+            "account": acct.name if acct else None, "account_match": getattr(up, "account_match", None),
+            "transfers_matched": getattr(up, "transfers_matched", 0)}
+
+
 @app.post("/api/upload")
-async def upload(files: list[UploadFile] = File(...), session: Session = Depends(get_session)):
+async def upload(files: list[UploadFile] = File(...), account_id: int | None = Form(None),
+                 new_account_type: str | None = Form(None), new_account_name: str | None = Form(None),
+                 user: User = Depends(current_user), session: Session = Depends(get_session)):
+    if new_account_type and new_account_type not in ACCOUNT_TYPES:
+        raise HTTPException(400, f"Account type must be one of: {', '.join(ACCOUNT_TYPES)}")
     results = []
     for f in files:
         content = await f.read()
@@ -57,62 +93,129 @@ async def upload(files: list[UploadFile] = File(...), session: Session = Depends
             results.append({"filename": f.filename, "ok": False, "error": "File is larger than 10 MB."})
             continue
         try:
-            up = import_file(session, f.filename or "statement", content)
-        except ParseError as exc:
+            up = import_file(session, user.id, f.filename or "statement", content, account_id=account_id,
+                             new_account_type=new_account_type, new_account_name=new_account_name)
+        except (ParseError, AccountChoiceError) as exc:
             session.rollback()
             results.append({"filename": f.filename, "ok": False, "error": str(exc)})
             continue
-        results.append({"filename": up.filename, "ok": True, "format": up.source_format, "rows_read": up.rows_read,
-                        "rows_added": up.rows_added, "duplicates_skipped": up.duplicates_skipped,
-                        "reconciled": up.reconciled, "reconciliation_note": up.reconciliation_note})
+        results.append(_upload_result(up, session))
+        if new_account_name or new_account_type:  # a new account is created once, then reused for the batch
+            account_id = up.account_id
+            new_account_name = new_account_type = None
     return {"results": results}
 
 
 @app.post("/api/demo")
-def load_demo(session: Session = Depends(get_session)):
-    """Load the synthetic sample statements so the app can be tried without real data."""
-    sample_dir = Path(__file__).resolve().parent.parent / "sample_data"
+def load_demo(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    """Load synthetic statements (current account, savings, credit card) so the app can be tried safely."""
     results = []
-    for name in ("lloyds_export_1.csv", "lloyds_export_2.csv", "lloyds_statement_2026-09.pdf"):
-        path = sample_dir / name
+    for name in SAMPLE_FILES:
+        path = SAMPLE_DIR / name
         if path.exists():
-            up = import_file(session, name, path.read_bytes())
-            results.append({"filename": name, "rows_added": up.rows_added, "reconciled": up.reconciled})
+            results.append(_upload_result(import_file(session, user.id, name, path.read_bytes()), session))
     return {"results": results}
 
 
 @app.get("/api/uploads")
-def uploads(session: Session = Depends(get_session)):
-    rows = session.scalars(select(Upload).order_by(Upload.uploaded_at.desc()))
+def uploads(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    rows = session.scalars(select(Upload).where(Upload.user_id == user.id).order_by(Upload.uploaded_at.desc()))
+    names = {a.id: a.name for a in session.scalars(select(Account).where(Account.user_id == user.id))}
     return [{"id": u.id, "filename": u.filename, "format": u.source_format, "uploaded_at": u.uploaded_at.isoformat(),
-             "rows_read": u.rows_read, "rows_added": u.rows_added, "duplicates_skipped": u.duplicates_skipped,
-             "reconciled": u.reconciled, "reconciliation_note": u.reconciliation_note} for u in rows]
+             "account": names.get(u.account_id), "rows_read": u.rows_read, "rows_added": u.rows_added,
+             "duplicates_skipped": u.duplicates_skipped, "reconciled": u.reconciled,
+             "reconciliation_note": u.reconciliation_note} for u in rows]
 
+
+# ---------- accounts ----------
+
+def _account_dict(session: Session, a: Account) -> dict:
+    last_with_balance = session.scalars(select(Transaction).where(
+        Transaction.account_id == a.id, Transaction.balance_pence.is_not(None))
+        .order_by(Transaction.date.desc(), Transaction.id.desc()).limit(1)).first()
+    count, first, last = session.execute(select(func.count(), func.min(Transaction.date), func.max(Transaction.date))
+                                         .where(Transaction.account_id == a.id)).one()
+    transfers = session.scalar(select(func.count()).select_from(Transaction).where(
+        Transaction.account_id == a.id, Transaction.transfer_pair_id.is_not(None)))
+    return {"id": a.id, "name": a.name, "bank": a.bank, "account_type": a.account_type,
+            "type_label": TYPE_LABELS.get(a.account_type, "Account"), "last4": a.last4,
+            "balance_pence": last_with_balance.balance_pence if last_with_balance else None,
+            "balance_date": last_with_balance.date.isoformat() if last_with_balance else None,
+            "transaction_count": count, "first_date": first.isoformat() if first else None,
+            "last_date": last.isoformat() if last else None, "transfers_matched": transfers}
+
+
+@app.get("/api/accounts")
+def accounts(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    rows = session.scalars(select(Account).where(Account.user_id == user.id).order_by(Account.id))
+    return [_account_dict(session, a) for a in rows]
+
+
+class AccountUpdate(BaseModel):
+    name: str | None = None
+    account_type: str | None = None
+
+
+@app.patch("/api/accounts/{account_id}")
+def update_account(account_id: int, body: AccountUpdate, user: User = Depends(current_user),
+                   session: Session = Depends(get_session)):
+    _own_account(session, user, account_id)
+    acct = session.get(Account, account_id)
+    if body.name is not None:
+        if not body.name.strip():
+            raise HTTPException(400, "Give the account a name.")
+        acct.name = body.name.strip()[:120]
+    if body.account_type is not None:
+        if body.account_type not in ACCOUNT_TYPES:
+            raise HTTPException(400, f"Account type must be one of: {', '.join(ACCOUNT_TYPES)}")
+        acct.account_type = body.account_type
+    session.commit()
+    return _account_dict(session, acct)
+
+
+@app.delete("/api/accounts/{account_id}")
+def delete_account(account_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    _own_account(session, user, account_id)
+    unlink_account(session, account_id)
+    n = session.scalar(select(func.count()).select_from(Transaction).where(Transaction.account_id == account_id))
+    session.execute(delete(Transaction).where(Transaction.account_id == account_id))
+    session.execute(delete(Upload).where(Upload.account_id == account_id))
+    session.execute(delete(Account).where(Account.id == account_id))
+    session.commit()
+    return {"deleted_transactions": n}
+
+
+# ---------- insights ----------
 
 @app.get("/api/overview")
-def overview(session: Session = Depends(get_session)):
-    txns = all_transactions(session)
+def overview(account_id: int | None = None, user: User = Depends(current_user),
+             session: Session = Depends(get_session)):
+    txns = all_transactions(session, user.id, _own_account(session, user, account_id))
     return {"months": months_overview(txns), "transaction_count": len(txns),
             "categorised_rate": round(categorised_rate(txns), 3)}
 
 
 @app.get("/api/summary/{month}")
-def summary(month: str, session: Session = Depends(get_session)):
-    txns = all_transactions(session)
+def summary(month: str, account_id: int | None = None, user: User = Depends(current_user),
+            session: Session = Depends(get_session)):
+    txns = all_transactions(session, user.id, _own_account(session, user, account_id))
     mt = in_month(txns, month)
     if not mt:
         raise HTTPException(404, f"No transactions in {month}.")
     months = sorted({o["month"] for o in months_overview(txns)})
     idx = months.index(month)
     comparison = compare_months(txns, month, months[idx - 1]) if idx > 0 else None
+    transfers = -sum(t.amount_pence for t in mt if t.transfer_pair_id is not None and t.amount_pence < 0)
     return {"month": month, **totals(mt), "categories": by_category(mt), "merchants": by_merchant(mt, 8),
-            "categorised_rate": round(categorised_rate(mt), 3), "comparison": comparison}
+            "categorised_rate": round(categorised_rate(mt), 3), "comparison": comparison,
+            "transfers_out_pence": transfers}
 
 
 @app.get("/api/transactions")
 def transactions(month: str | None = None, category: str | None = None, q: str | None = None,
+                 account_id: int | None = None, user: User = Depends(current_user),
                  session: Session = Depends(get_session)):
-    txns = all_transactions(session)
+    txns = all_transactions(session, user.id, _own_account(session, user, account_id))
     if month:
         txns = in_month(txns, month)
     if category:
@@ -129,23 +232,26 @@ class CategoryUpdate(BaseModel):
 
 
 @app.patch("/api/transactions/{txn_id}")
-def set_category(txn_id: int, body: CategoryUpdate, session: Session = Depends(get_session)):
+def set_category(txn_id: int, body: CategoryUpdate, user: User = Depends(current_user),
+                 session: Session = Depends(get_session)):
     if body.category not in CATEGORIES:
         raise HTTPException(400, f"Unknown category. Use one of: {', '.join(CATEGORIES)}")
     txn = session.get(Transaction, txn_id)
-    if txn is None:
+    if txn is None or txn.user_id != user.id:
         raise HTTPException(404, "Transaction not found.")
     txn.category, txn.category_source = body.category, "manual"
     updated = 1
     if body.apply_to_merchant:
-        rule = session.scalar(select(MerchantRule).where(MerchantRule.merchant_key == txn.merchant_key))
+        rule = session.scalar(select(MerchantRule).where(MerchantRule.user_id == user.id,
+                                                         MerchantRule.merchant_key == txn.merchant_key))
         if rule:
             rule.category = body.category
         else:
-            session.add(MerchantRule(merchant_key=txn.merchant_key, category=body.category))
-        for other in session.scalars(select(Transaction).where(Transaction.merchant_key == txn.merchant_key,
-                                                               Transaction.id != txn.id)):
-            if other.category_source != "manual":
+            session.add(MerchantRule(user_id=user.id, merchant_key=txn.merchant_key, category=body.category))
+        for other in session.scalars(select(Transaction).where(
+                Transaction.user_id == user.id, Transaction.merchant_key == txn.merchant_key,
+                Transaction.id != txn.id)):
+            if other.category_source not in ("manual", "transfer"):
                 other.category, other.category_source = body.category, "learned"
                 updated += 1
     session.commit()
@@ -153,42 +259,56 @@ def set_category(txn_id: int, body: CategoryUpdate, session: Session = Depends(g
 
 
 @app.get("/api/recurring")
-def recurring(session: Session = Depends(get_session)):
-    rows = detect_recurring(all_transactions(session))
+def recurring(account_id: int | None = None, user: User = Depends(current_user),
+              session: Session = Depends(get_session)):
+    rows = detect_recurring(all_transactions(session, user.id, _own_account(session, user, account_id)))
     active = [r for r in rows if r["active"]]
     return {"items": rows, "active_monthly_total_pence": sum(r["monthly_cost_pence"] for r in active)}
 
 
 class Question(BaseModel):
     question: str
+    account_id: int | None = None
 
 
 @app.post("/api/chat")
-def ask(body: Question, session: Session = Depends(get_session)):
+def ask(body: Question, user: User = Depends(current_user), session: Session = Depends(get_session)):
     question = body.question.strip()[:500]
     if not question:
         raise HTTPException(400, "Ask a question.")
-    return chat.ask(question, all_transactions(session))
+    return chat.ask(question, all_transactions(session, user.id, _own_account(session, user, body.account_id)))
 
+
+# ---------- your data ----------
 
 @app.get("/api/export")
-def export(session: Session = Depends(get_session)):
+def export(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    names = {a.id: a.name for a in session.scalars(select(Account).where(Account.user_id == user.id))}
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["date", "description", "merchant", "category", "type", "amount_gbp", "balance_gbp", "account"])
-    for t in all_transactions(session):
-        w.writerow([t.date.isoformat(), t.description, t.merchant, t.category, t.txn_type,
-                    f"{t.amount_pence / 100:.2f}",
-                    "" if t.balance_pence is None else f"{t.balance_pence / 100:.2f}", t.account])
+    w.writerow(["date", "account", "description", "merchant", "category", "type", "amount_gbp", "balance_gbp"])
+    for t in all_transactions(session, user.id):
+        w.writerow([t.date.isoformat(), names.get(t.account_id, ""), t.description, t.merchant, t.category,
+                    t.txn_type, f"{t.amount_pence / 100:.2f}",
+                    "" if t.balance_pence is None else f"{t.balance_pence / 100:.2f}"])
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=moneymap-export.csv"})
 
 
 @app.delete("/api/data")
-def delete_all(session: Session = Depends(get_session)):
-    counts = {"transactions": session.query(Transaction).count(), "uploads": session.query(Upload).count()}
-    session.execute(delete(Transaction))
-    session.execute(delete(MerchantRule))
-    session.execute(delete(Upload))
+def delete_all(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    counts = {
+        "transactions": session.scalar(select(func.count()).select_from(Transaction).where(Transaction.user_id == user.id)),
+        "accounts": session.scalar(select(func.count()).select_from(Account).where(Account.user_id == user.id)),
+    }
+    for model in (Transaction, MerchantRule, Upload, Account):
+        session.execute(delete(model).where(model.user_id == user.id))
     session.commit()
     return {"deleted": counts}
+
+
+@app.post("/api/transfers/relink")
+def relink(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    pairs = link_transfers(session, user.id)
+    session.commit()
+    return {"pairs": pairs}

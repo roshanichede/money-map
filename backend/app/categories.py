@@ -4,7 +4,7 @@ import re
 CATEGORIES = [
     "Groceries", "Eating out", "Takeaways", "Transport", "Bills & utilities", "Rent & housing",
     "Subscriptions", "Shopping", "Entertainment", "Health & fitness", "Personal care", "Travel",
-    "Education", "Gifts & charity", "Cash", "Fees & charges", "Income", "Transfers", "Other",
+    "Education", "Gifts & charity", "Cash", "Fees & charges", "Card repayments", "Income", "Transfers", "Other",
 ]
 # Categories excluded from "spending" and "income" totals (money moving between your own pots).
 NEUTRAL = {"Transfers"}
@@ -38,7 +38,7 @@ KEYWORDS: dict[str, list[str]] = {
     "Education": ["UNIVERSITY", "UNI OF", "COURSERA", "UDEMY", "TUITION", "STUDENT"],
     "Gifts & charity": ["DONATION", "CHARITY", "JUSTGIVING", "OXFAM", "RED CROSS", "MOONPIG", "FUNKY PIGEON"],
     "Fees & charges": ["FEE", "CHARGE", "INTEREST", "OVERDRAFT", "PENALTY", "NON-STERLING"],
-    "Income": ["SALARY", "PAYROLL", "WAGES", "HMRC", "REFUND", "DIVIDEND", "INVOICE"],
+    "Income": ["SALARY", "PAYROLL", "WAGES", "HMRC", "REFUND", "DIVIDEND", "INVOICE", "INTEREST"],
 }
 _KEYWORD_RE = {
     cat: re.compile("|".join(r"(?<![A-Z])" + re.escape(k.strip()) + r"(?![A-Z])" for k in words))
@@ -56,14 +56,24 @@ TYPE_DIRECT = {"DD", "SO"}
 TYPE_INCOMING = {"BGC", "FPI", "CR", "DEP"}
 
 
+CARD_REPAYMENT_RE = re.compile(
+    r"CREDIT CARD|\bCC PAYMENT|BARCLAYCARD|AMERICAN EXPRESS|\bAMEX\b|CAPITAL ONE|MBNA|VANQUIS|AQUA CARD|"
+    r"LLOYDS BANK PLC CARD|JOHN LEWIS FIN")
+CARD_PAYMENT_RECEIVED_RE = re.compile(r"PAYMENT RECEIVED|PAYMENT - THANK|PAYMENT THANK YOU|DIRECT DEBIT PAYMENT")
+
+
 def categorise(description: str, merchant_key: str, txn_type: str, amount_pence: int) -> str:
     text = f"{description.upper()} {merchant_key}"
     code = (txn_type or "").upper()
+    if amount_pence > 0 and CARD_PAYMENT_RECEIVED_RE.search(text):
+        return "Transfers"  # a repayment arriving on a credit card
+    if amount_pence < 0 and CARD_REPAYMENT_RE.search(text):
+        return "Card repayments"  # counted as spending until the card itself is uploaded
     if code in TYPE_TRANSFER or re.search(r"\bTRANSFER\b|\bSAVINGS\b|\bTO A/C\b|\bFROM A/C\b|\bPOT\b", text):
         return "Transfers"
     if code in TYPE_CASH or re.search(r"\bCASH\b|\bATM\b|\bLINK\b", text):
         return "Cash"
-    if code in TYPE_FEE:
+    if code in TYPE_FEE and amount_pence < 0:
         return "Fees & charges"
     if amount_pence > 0:
         if _KEYWORD_RE["Income"].search(text) or code in TYPE_INCOMING:

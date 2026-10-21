@@ -21,6 +21,18 @@ class ParseResult:
     transactions: list[ParsedTxn]  # in chronological order (oldest first)
     opening_balance_pence: int | None = None
     warnings: list[str] | None = None
+    account_number: str | None = None  # as found in the file; never stored in full
+    bank: str | None = None
+
+
+BANK_NAMES = ("Lloyds", "Halifax", "Bank of Scotland", "Barclays", "HSBC", "NatWest", "Santander", "Nationwide",
+              "Monzo", "Starling", "Revolut", "TSB", "Co-operative Bank", "First Direct", "Metro Bank",
+              "American Express", "Barclaycard", "Capital One")
+
+
+def guess_bank(text: str) -> str | None:
+    lower = text.lower()
+    return next((b for b in BANK_NAMES if b.lower() in lower), None)
 
 
 class ParseError(ValueError):

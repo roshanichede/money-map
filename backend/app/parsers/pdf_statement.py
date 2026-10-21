@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import pdfplumber
 
-from .common import ParsedTxn, ParseError, ParseResult, parse_date, parse_money
+from .common import ParsedTxn, ParseError, ParseResult, guess_bank, parse_date, parse_money
 
 MONEY_RE = re.compile(r"^-?£?\d{1,3}(,\d{3})*\.\d{2}(CR|DR)?$|^-?£?\d+\.\d{2}(CR|DR)?$")
 DATE_PATTERNS = [
@@ -22,6 +22,7 @@ DATE_PATTERNS = [
 OPENING_WORDS = ("balance brought forward", "opening balance", "balance b/f", "brought forward")
 CLOSING_WORDS = ("balance carried forward", "closing balance", "balance c/f", "carried forward")
 TYPE_CODE_RE = re.compile(r"^[A-Z]{2,4}$")
+ACCOUNT_NO_RE = re.compile(r"account\s*(?:number|no\.?)?\s*:?\s*(\d{8})\b", re.I)
 
 
 @dataclass
@@ -118,6 +119,9 @@ def parse_pdf(content: bytes) -> ParseResult:
     with pdf:
         if not any((p.extract_text() or "").strip() for p in pdf.pages):
             raise ParseError("This PDF has no readable text (it may be a scan).")
+        first_page = pdf.pages[0].extract_text() or ""
+        account_match = ACCOUNT_NO_RE.search(first_page)
+        bank = guess_bank(first_page)
         current_date = None
         last_line_bottom = None
         for page in pdf.pages:
@@ -210,4 +214,5 @@ def parse_pdf(content: bytes) -> ParseResult:
         elif prev_bal is not None:
             prev_bal += txn.amount_pence
 
-    return ParseResult("pdf", txns, opening_balance_pence=opening, warnings=warnings or None)
+    return ParseResult("pdf", txns, opening_balance_pence=opening, warnings=warnings or None,
+                       account_number=account_match.group(1) if account_match else None, bank=bank)

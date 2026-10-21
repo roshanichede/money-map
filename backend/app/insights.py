@@ -13,8 +13,11 @@ def month_key(d: date) -> str:
     return f"{d.year:04d}-{d.month:02d}"
 
 
-def all_transactions(session: Session) -> list[Transaction]:
-    return list(session.scalars(select(Transaction).order_by(Transaction.date, Transaction.id)))
+def all_transactions(session: Session, user_id: int, account_id: int | None = None) -> list[Transaction]:
+    q = select(Transaction).where(Transaction.user_id == user_id)
+    if account_id is not None:
+        q = q.where(Transaction.account_id == account_id)
+    return list(session.scalars(q.order_by(Transaction.date, Transaction.id)))
 
 
 def in_month(txns: list[Transaction], month: str) -> list[Transaction]:
@@ -104,4 +107,4 @@ def txn_dict(t: Transaction) -> dict:
     return {"id": t.id, "date": t.date.isoformat(), "description": t.description, "merchant": t.merchant,
             "merchant_key": t.merchant_key, "type": t.txn_type, "amount_pence": t.amount_pence,
             "balance_pence": t.balance_pence, "category": t.category, "category_source": t.category_source,
-            "account": t.account}
+            "account_id": t.account_id, "is_transfer": t.transfer_pair_id is not None}

@@ -1,6 +1,7 @@
 """CSV statement parsers: Lloyds Banking Group format first, then a header-sniffing generic parser."""
 import csv
 import io
+from collections import Counter
 
 from .common import ParsedTxn, ParseError, ParseResult, parse_date, parse_money
 
@@ -96,7 +97,9 @@ def parse_lloyds_csv(content: bytes) -> ParseResult:
             ))
         except ParseError as exc:
             raise ParseError(f"Line {line_no}: {exc}") from exc
-    return ParseResult("lloyds_csv", to_chronological(txns))
+    accounts = Counter(t.account for t in txns if t.account)
+    return ParseResult("lloyds_csv", to_chronological(txns),
+                       account_number=accounts.most_common(1)[0][0] if accounts else None, bank="Lloyds")
 
 
 def parse_generic_csv(content: bytes) -> ParseResult:
@@ -134,4 +137,6 @@ def parse_generic_csv(content: bytes) -> ParseResult:
             ))
         except ParseError as exc:
             raise ParseError(f"Line {line_no}: {exc}") from exc
-    return ParseResult("generic_csv", to_chronological(txns))
+    accounts = Counter(t.account for t in txns if t.account and any(c.isdigit() for c in t.account))
+    return ParseResult("generic_csv", to_chronological(txns),
+                       account_number=accounts.most_common(1)[0][0] if accounts else None)

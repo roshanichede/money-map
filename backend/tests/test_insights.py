@@ -51,7 +51,7 @@ def test_learning_a_category_applies_to_the_merchant(loaded):
 
 def test_export_and_delete(loaded):
     csv = loaded.get("/api/export").text
-    assert csv.startswith("date,description") and csv.count("\n") > 200
+    assert csv.startswith("date,account,description") and csv.count("\n") > 200
     loaded.delete("/api/data")
     assert loaded.get("/api/overview").json()["transaction_count"] == 0
 
