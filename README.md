@@ -11,7 +11,7 @@ Built because Lloyds doesn't email transaction alerts, has no personal API, and 
 | **Statement import** | Lloyds / Halifax / Bank of Scotland CSV natively; most other UK bank CSVs by header detection; text-based PDF statements by column position. |
 | **Duplicate-safe** | Upload overlapping exports, or a PDF and a CSV of the same month: each payment is counted once. |
 | **Reconciled to the penny** | Every file is checked: opening balance + transactions = closing balance. A missing row is flagged. |
-| **Categories that learn** | ~90 UK merchant rules. Fix one Pret payment and every Pret payment follows, now and in future uploads. |
+| **Categories that learn** | 200+ UK merchant keywords and 70+ brand names. Fix one Pret payment and every Pret payment follows, now and in future uploads. |
 | **Regular payments** | Detects weekly / monthly / quarterly / yearly charges with stable amounts, and when the next one is due. |
 | **Plain-English headline** | Each month opens with a sentence: what you spent, how it compares, and what drove the change. |
 | **Ask your money** | Chat answers are calculated from your transactions first. With an API key, Claude words them, and any £ figure or % it writes that isn't in the calculated facts gets the reply thrown out. |
