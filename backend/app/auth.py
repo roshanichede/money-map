@@ -12,6 +12,7 @@ from urllib.parse import unquote
 
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .db import get_session
@@ -42,7 +43,11 @@ def _get_or_create(session: Session, email: str, name: str) -> User:
             return local
     user = User(email=email, name=name)
     session.add(user)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:  # a parallel first request created this user a moment ago
+        session.rollback()
+        user = session.scalar(select(User).where(User.email == email))
     return user
 
 

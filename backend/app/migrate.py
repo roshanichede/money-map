@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from .accounts import create_account
 from .auth import LOCAL_EMAIL
 from .categories import categorise
+from .merchants import mask_numbers, normalise
 from .models import MerchantRule, Transaction, Upload, User
 
 V1_TABLES = ("uploads", "transactions", "merchant_rules")
@@ -91,17 +92,22 @@ def migrate_v1(bind) -> None:
                 continue
             acct_id = accounts[r.get("account") or ""].id
             d = _as_date(r["date"])
+            # Same steps as the importer: mask numbers first, then build the duplicate key from the masked text.
+            description = mask_numbers(r["description"])
             if r["balance_pence"] is not None:
                 base = f"{acct_id}|bal|{d.isoformat()}|{r['amount_pence']}|{r['balance_pence']}"
             else:
-                base = f"{acct_id}|desc|{d.isoformat()}|{r['amount_pence']}|{' '.join(r['description'].upper().split())}"
+                base = f"{acct_id}|desc|{d.isoformat()}|{r['amount_pence']}|{' '.join(description.upper().split())}"
             seen[r["upload_id"]][base] += 1
             key = hashlib.sha256(f"{base}|#{seen[r['upload_id']][base]}".encode()).hexdigest()
+            merchant_key, merchant = normalise(description)
             category = r["category"]
             if r["category_source"] == "rule":  # re-run the rules: v2 knows about card repayments etc.
-                category = categorise(r["description"], r["merchant_key"], r["txn_type"], r["amount_pence"])
+                category = categorise(description, merchant_key, r["txn_type"], r["amount_pence"])
+            elif r["merchant_key"] != merchant_key and r["category_source"] in ("learned", "manual"):
+                merchant_key = r["merchant_key"]  # keep the key the user's rule was made against
             s.add(Transaction(user_id=user.id, account_id=acct_id, upload_id=upload_ids[r["upload_id"]], date=d,
-                              description=r["description"], merchant=r["merchant"], merchant_key=r["merchant_key"],
+                              description=description, merchant=merchant, merchant_key=merchant_key,
                               txn_type=r["txn_type"], amount_pence=r["amount_pence"], balance_pence=r["balance_pence"],
                               category=category, category_source=r["category_source"], dedupe_key=key))
         for r in old_rules:

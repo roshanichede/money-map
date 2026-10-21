@@ -120,7 +120,7 @@ def _label(month: str) -> str:
 
 def _coverage_note(month: str, overview: dict[str, dict]) -> str:
     o = overview.get(month)
-    if not o:
+    if not o or month != max(overview):  # only the latest month in the data can be unfinished
         return ""
     last = date.fromisoformat(o["last_date"])
     y, m = int(month[:4]), int(month[5:])

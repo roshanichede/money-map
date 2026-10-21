@@ -1,12 +1,6 @@
 import type { NextConfig } from "next";
 
-const API_URL = process.env.API_URL ?? "http://localhost:8000";
-
-const nextConfig: NextConfig = {
-  // The browser only ever talks to Next.js; /api/* is proxied to the FastAPI backend.
-  async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];
-  },
-};
+// /api/* is forwarded to the FastAPI backend by app/api/[...path]/route.ts (which also attaches the signed-in user).
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

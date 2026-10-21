@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from .accounts import create_account, find_by_number, find_by_overlap, guess_type
 from .categories import categorise
-from .merchants import normalise
+from .merchants import mask_numbers, normalise
 from .models import Account, MerchantRule, Transaction, Upload
 from .money import fmt_gbp
 from .parsers import ParseResult, parse_statement
@@ -118,6 +118,8 @@ def choose_account(session: Session, user_id: int, filename: str, result: ParseR
 def import_file(session: Session, user_id: int, filename: str, content: bytes, *, account_id: int | None = None,
                 new_account_type: str | None = None, new_account_name: str | None = None) -> Upload:
     result = parse_statement(filename, content)
+    for t in result.transactions:  # never store full account or card numbers, even inside descriptions
+        t.description = mask_numbers(t.description)
     account, how = choose_account(session, user_id, filename, result, account_id, new_account_type, new_account_name)
     flipped = account.account_type == "credit_card" and _fix_card_signs(result)
     status, note = reconcile(result)

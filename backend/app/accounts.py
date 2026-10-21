@@ -10,6 +10,7 @@ from .models import ACCOUNT_TYPES, Account, Transaction
 from .parsers import ParseResult
 
 TYPE_LABELS = {"current": "Current account", "savings": "Savings", "credit_card": "Credit card", "other": "Account"}
+SHORT = {"current": "current account", "savings": "savings", "credit_card": "credit card", "other": "account"}
 
 
 def number_hash(user_id: int, number: str) -> str:
@@ -38,8 +39,8 @@ def guess_type(filename: str, result: ParseResult) -> str:
 
 
 def default_name(account_type: str, bank: str | None, last4: str) -> str:
-    base = f"{bank} {TYPE_LABELS[account_type].lower()}" if bank else TYPE_LABELS[account_type]
-    return f"{base} ••{last4}" if last4 else base
+    """e.g. "Lloyds current account". The last four digits are shown alongside, not in the name."""
+    return f"{bank} {SHORT[account_type]}" if bank else TYPE_LABELS[account_type]
 
 
 def find_by_number(session: Session, user_id: int, number: str) -> Account | None:

@@ -3,12 +3,12 @@
 import { useState } from "react";
 
 import type { MonthRow } from "@/lib/api";
-import { compactPounds, isPartialMonth, monthLabel, money, shortDate, signedMoney } from "@/lib/format";
+import { compactPounds, isUnfinished, monthLabel, money, shortDate, signedMoney } from "@/lib/format";
 
-const W = 720;
-const H = 260;
+const W = 960;
+const H = 230;
 const PAD = { top: 16, right: 8, bottom: 40, left: 48 };
-const BAR = 20; // <= 24px per the mark spec
+const BAR = 16; // <= 24px per the mark spec
 const GAP = 2; // surface gap between the two touching bars
 
 /** A top value that splits into 4 round steps (e.g. £3,000 = 4 × £750 is avoided; £4,000 = 4 × £1,000). */
@@ -37,8 +37,8 @@ export function MonthsChart({ months, selected, onSelect }: { months: MonthRow[]
   const hovered = hover === null ? null : months[hover];
 
   return (
-    <section aria-labelledby="months-h">
-      <div className="section-head">
+    <section className="card" aria-labelledby="months-h">
+      <div className="card-head">
         <h2 id="months-h">Month by month</h2>
         <div className="legend">
           <span><i style={{ background: "var(--spend)" }} />Spent</span>
@@ -57,7 +57,7 @@ export function MonthsChart({ months, selected, onSelect }: { months: MonthRow[]
           <tbody>
             {months.map((m) => (
               <tr key={m.month}>
-                <td>{monthLabel(m.month)}{isPartialMonth(m.month, m.last_date) ? ` (to ${shortDate(m.last_date)})` : ""}</td>
+                <td>{monthLabel(m.month)}{isUnfinished(m, months) ? ` (to ${shortDate(m.last_date)})` : ""}</td>
                 <td className="right num">{money(m.spend_pence)}</td>
                 <td className="right num">{money(m.income_pence)}</td>
                 <td className="right num">{signedMoney(m.net_pence)}</td>
@@ -76,7 +76,7 @@ export function MonthsChart({ months, selected, onSelect }: { months: MonthRow[]
             ))}
             {months.map((m, i) => {
               const cx = PAD.left + band * i + band / 2;
-              const partial = isPartialMonth(m.month, m.last_date);
+              const partial = isUnfinished(m, months);
               return (
                 <g key={m.month}>
                   <rect

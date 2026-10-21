@@ -21,7 +21,12 @@ export function shortDate(iso: string) {
   return new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-/** True when the month's data stops before the month ends (e.g. an export taken mid-month). */
+/** True when the latest month's data stops before the month ends (an export taken mid-month).
+ *  Earlier months are never "unfinished": a quiet account simply had no payments late in the month. */
+export function isUnfinished(row: { month: string; last_date: string }, months: { month: string }[]) {
+  return row.month === months.at(-1)?.month && isPartialMonth(row.month, row.last_date);
+}
+
 export function isPartialMonth(month: string, lastDate: string) {
   const [y, m] = month.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();

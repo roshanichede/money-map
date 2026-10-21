@@ -6,6 +6,20 @@
 """
 import re
 
+_LONG_NUMBER = re.compile(r"(?<!\d)(\d[\d ]{6,22}\d)(?!\d)")
+
+
+def mask_numbers(description: str) -> str:
+    """Hide account and card numbers that banks print in descriptions: "FROM A/C 12345678" -> "FROM A/C ••5678".
+    Runs of 8+ digits (spaces allowed, as in card numbers) keep only their last four."""
+    def repl(m: re.Match) -> str:
+        digits = re.sub(r"\D", "", m.group(1))
+        return f"••{digits[-4:]}" if len(digits) >= 8 else m.group(1)
+    return _LONG_NUMBER.sub(repl, description)
+
+
+_TRANSFER = re.compile(r"^(TO|FROM)\s+A/?C\b\s*(?:••)?(\d{4})?", re.I)
+
 # Known brands: if the cleaned description contains the pattern, use this key and name.
 BRANDS: list[tuple[str, str]] = [
     (r"\bAMZN|\bAMAZON", "Amazon"), (r"\bNETFLIX", "Netflix"), (r"\bSPOTIFY", "Spotify"),
@@ -53,6 +67,12 @@ _LOCATIONS = {"LONDON", "LEICESTER", "MANCHESTER", "BIRMINGHAM", "LEEDS", "GLASG
 def normalise(description: str) -> tuple[str, str]:
     """Return (merchant_key, display_name)."""
     text = " ".join(description.upper().split())
+    transfer = _TRANSFER.match(text)
+    if transfer:
+        direction = "to" if transfer.group(1) == "TO" else "from"
+        last4 = transfer.group(2)
+        name = f"Transfer {direction} ••{last4}" if last4 else f"Transfer {direction} another account"
+        return name.upper(), name
     if text.startswith("PAYPAL *") or text.startswith("PAYPAL*"):
         rest = text.split("*", 1)[1].strip()
         text = rest or text

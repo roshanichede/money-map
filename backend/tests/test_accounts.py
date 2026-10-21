@@ -51,8 +51,9 @@ def test_reuploading_card_file_finds_same_account(everything):
 
 def test_transfers_between_own_accounts_are_matched(everything):
     txns = everything.get("/api/transactions", params={"month": "2026-09"}).json()
-    savings_out = [t for t in txns if "TO A/C 87654321" in t["description"]]
+    savings_out = [t for t in txns if t["merchant"] == "Transfer to ••4321"]
     card_payment = [t for t in txns if t["description"] == "LLOYDS BANK PLC CREDIT CARD"]
+    assert savings_out and card_payment
     for t in savings_out + card_payment:
         assert t["is_transfer"] and t["category"] == "Transfers", t
     summary = everything.get("/api/summary/2026-09").json()
@@ -100,7 +101,7 @@ def test_rename_and_delete_account_releases_transfers(everything):
     r = everything.patch(f"/api/accounts/{accts['savings']['id']}", json={"name": "Rainy day pot"}).json()
     assert r["name"] == "Rainy day pot"
     everything.delete(f"/api/accounts/{accts['savings']['id']}")
-    txns = everything.get("/api/transactions", params={"q": "87654321"}).json()
+    txns = everything.get("/api/transactions", params={"q": "transfer to"}).json()
     assert txns and not any(t["is_transfer"] for t in txns)
     assert len(everything.get("/api/accounts").json()) == 2
 
@@ -170,3 +171,53 @@ def test_v1_database_upgrades_without_losing_anything(tmp_path):
                                                 for r in rows])
             assert dedupe_keys(result, rows[0].account_id) == [r.dedupe_key for r in rows]
     init_db(engine)  # starting again is a no-op
+
+
+def test_parallel_first_requests_share_one_user(tmp_path, monkeypatch):
+    """The browser fires several requests at once on first load; only one user may be created."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db import get_session
+    from app.main import app
+
+    monkeypatch.delenv("INTERNAL_API_SECRET", raising=False)
+    monkeypatch.setattr("app.main.init_db", lambda: None)
+    engine = create_engine(f"sqlite:///{tmp_path / 'race.db'}", connect_args={"check_same_thread": False})
+    init_db(engine)
+    SessionFactory = sessionmaker(bind=engine, expire_on_commit=False)
+
+    def _session():
+        s = SessionFactory()
+        try:
+            yield s
+        finally:
+            s.close()
+
+    app.dependency_overrides[get_session] = _session
+    try:
+        with TestClient(app) as c, ThreadPoolExecutor(8) as pool:
+            codes = list(pool.map(lambda _: c.get("/api/overview").status_code, range(16)))
+    finally:
+        app.dependency_overrides.clear()
+    assert codes == [200] * 16
+    with Session(engine) as s:
+        assert s.scalar(select(func.count()).select_from(User)) == 1
+
+
+def test_account_numbers_masked_in_descriptions(everything, engine):
+    import re
+    with Session(engine) as s:
+        for d in s.scalars(select(Transaction.description)):
+            assert not re.search(r"\d{8}", d), d
+    txns = everything.get("/api/transactions", params={"q": "transfer from"}).json()
+    assert txns and txns[0]["merchant"] == "Transfer from ••5678"
+
+
+def test_mask_numbers():
+    from app.merchants import mask_numbers
+    assert mask_numbers("FROM A/C 12345678") == "FROM A/C ••5678"
+    assert mask_numbers("CARD 4929 1234 5678 9012 REFUND") == "CARD ••9012 REFUND"
+    assert mask_numbers("TESCO STORES 3021 CD 4821") == "TESCO STORES 3021 CD 4821"
