@@ -1,4 +1,5 @@
 """MoneyMap API. Every route works on the signed-in user's data only (see auth.py)."""
+import calendar
 import csv
 import io
 import os
@@ -18,8 +19,8 @@ from .auth import current_user, login_mode
 from .categories import CATEGORIES
 from .db import get_session, init_db
 from .importer import AccountChoiceError, import_file
-from .insights import (all_transactions, by_category, by_merchant, categorised_rate, compare_months, in_month,
-                       months_overview, totals, txn_dict)
+from .insights import (all_transactions, by_category, by_merchant, categorised_rate, compare_months, earnings,
+                       highlights, in_month, months_overview, totals, txn_dict)
 from .models import ACCOUNT_TYPES, Account, MerchantRule, Transaction, Upload, User
 from .parsers import ParseError
 from .recurring import detect_recurring
@@ -206,9 +207,17 @@ def summary(month: str, account_id: int | None = None, user: User = Depends(curr
     idx = months.index(month)
     comparison = compare_months(txns, month, months[idx - 1]) if idx > 0 else None
     transfers = -sum(t.amount_pence for t in mt if t.transfer_pair_id is not None and t.amount_pence < 0)
+    last_day = max(t.date for t in mt)
+    unfinished = month == months[-1] and last_day.day < calendar.monthrange(last_day.year, last_day.month)[1] - 2
     return {"month": month, **totals(mt), "categories": by_category(mt), "merchants": by_merchant(mt, 8),
             "categorised_rate": round(categorised_rate(mt), 3), "comparison": comparison,
-            "transfers_out_pence": transfers}
+            "transfers_out_pence": transfers, "highlights": highlights(txns, month, comparison, unfinished)}
+
+
+@app.get("/api/earnings")
+def earnings_view(account_id: int | None = None, user: User = Depends(current_user),
+                  session: Session = Depends(get_session)):
+    return earnings(all_transactions(session, user.id, _own_account(session, user, account_id)))
 
 
 @app.get("/api/transactions")

@@ -1,5 +1,5 @@
-import type { Change, MonthRow, Summary as SummaryData } from "@/lib/api";
-import { monthLabel, moneyRound, plural, shortDate, signedRound } from "@/lib/format";
+import type { Change, Earnings, MonthRow, Summary as SummaryData } from "@/lib/api";
+import { monthLabel, moneyRound, plural, shortDate } from "@/lib/format";
 
 /** Describe one merchant-level change in words, e.g. "3 more Deliveroo payments". */
 function driverPhrase(c: Change): string | null {
@@ -58,32 +58,45 @@ export function SummarySentence({ summary, month, partial }: { summary: SummaryD
   );
 }
 
-export function Stats({ summary, recurringMonthly, partial }: { summary: SummaryData; recurringMonthly: number; partial: boolean }) {
+type StatsProps = {
+  summary: SummaryData;
+  earnings: Earnings | null;
+  recurringMonthly: number;
+  partial: boolean;
+};
+
+export function Stats({ summary, earnings, recurringMonthly, partial }: StatsProps) {
   const prev = summary.comparison?.prev;
-  const noIncomeYet = partial && summary.income_pence === 0;
+  const salary = summary.salary_pence;
+  const other = summary.other_income_pence;
+  const year = earnings?.this_year;
+  let earnedNote = "nothing came in";
+  if (salary && other) earnedNote = `salary ${moneyRound(salary)} + ${moneyRound(other)} other`;
+  else if (salary) earnedNote = "all salary";
+  else if (other && partial && earnings?.usual_salary_day) earnedNote = "salary not in yet";
+  else if (other) earnedNote = "no salary this month";
+  else if (partial) earnedNote = "nothing yet this month";
   return (
     <dl className="stats">
       <div className="stat">
         <dt>Spent</dt>
         <dd className="num">{moneyRound(summary.spend_pence)}</dd>
-        <span className="delta">{prev ? `${moneyRound(prev.spend_pence)} last month` : " "}</span>
+        <span className="delta">{prev ? `${moneyRound(prev.spend_pence)} last month` : partial ? "so far this month" : "\u00a0"}</span>
       </div>
-      <div className="stat">
-        <dt>Came in</dt>
+      <div className="stat stat-earned">
+        <dt>Earned this month</dt>
         <dd className="num">{moneyRound(summary.income_pence)}</dd>
-        <span className="delta">
-          {noIncomeYet ? "nothing yet this month" : prev ? `${moneyRound(prev.income_pence)} last month` : " "}
-        </span>
+        <span className="delta">{earnedNote}</span>
+      </div>
+      <div className="stat stat-earned">
+        <dt>Earned in {earnings?.year ?? "total"}</dt>
+        <dd className="num">{year ? moneyRound(year.income_pence) : "–"}</dd>
+        <span className="delta">{year ? `since ${shortDate(year.since)}, from your statements` : "\u00a0"}</span>
       </div>
       <div className="stat">
-        <dt>Left over</dt>
-        <dd className="num">{signedRound(summary.net_pence)}</dd>
-        <span className="delta">{partial ? "so far this month" : "income minus spending"}</span>
-      </div>
-      <div className="stat">
-        <dt>Regular payments</dt>
+        <dt>Bills &amp; subscriptions</dt>
         <dd className="num">{moneyRound(recurringMonthly)}</dd>
-        <span className="delta">a month, bills included</span>
+        <span className="delta">a month, going out regularly</span>
       </div>
     </dl>
   );

@@ -85,7 +85,7 @@ def test_all_accounts_total_has_no_double_counting(everything):
 def test_savings_interest_is_income_not_a_fee(everything):
     sav = _accounts(everything)["savings"]
     txns = everything.get("/api/transactions", params={"account_id": sav["id"], "q": "interest"}).json()
-    assert txns and {t["category"] for t in txns} == {"Income"}
+    assert txns and {t["category"] for t in txns} == {"Other income"}
 
 
 def test_explicit_new_account_for_a_file(client):

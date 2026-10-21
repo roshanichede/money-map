@@ -40,3 +40,10 @@ def init_db(bind=None):
         migrate_v1(bind)
     else:
         Base.metadata.create_all(bind=bind)
+
+    from sqlalchemy.orm import Session as _Session
+
+    from .income import upgrade_existing_data
+
+    with _Session(bind=bind) as session:
+        upgrade_existing_data(session)

@@ -11,6 +11,8 @@ export type Txn = {
   category_source: "rule" | "learned" | "manual" | "transfer";
   account_id: number;
   is_transfer: boolean;
+  /** How money in was read: salary, other income, a friend paying you back, or a shop refund. */
+  kind: "spend" | "transfer" | "salary" | "income" | "paid_back" | "from_person" | "refund";
 };
 
 export type AccountType = "current" | "savings" | "credit_card" | "other";
@@ -32,6 +34,10 @@ export type Account = {
 export type MonthRow = {
   month: string;
   income_pence: number;
+  salary_pence: number;
+  other_income_pence: number;
+  paid_back_pence: number;
+  from_people_pence: number;
   spend_pence: number;
   net_pence: number;
   transaction_count: number;
@@ -69,9 +75,17 @@ export type Comparison = {
   changes: Change[];
 };
 
+export type Highlight = { kind: "top" | "up" | "down" | "unsorted" | "paid_back" | "from_people" | "salary"; text: string; category?: string };
+
 export type Summary = {
   month: string;
   income_pence: number;
+  salary_pence: number;
+  other_income_pence: number;
+  paid_back_pence: number;
+  from_people_pence: number;
+  refunds_pence: number;
+  highlights: Highlight[];
   spend_pence: number;
   net_pence: number;
   transaction_count: number;
@@ -80,6 +94,23 @@ export type Summary = {
   categorised_rate: number;
   comparison: Comparison | null;
   transfers_out_pence: number;
+};
+
+export type EarningSource = {
+  name: string;
+  kind: "salary" | "income" | "paid_back" | "from_person";
+  total_pence: number;
+  count: number;
+  last_date: string;
+  category: string;
+};
+export type Earnings = {
+  year: number | null;
+  this_year: { income_pence: number; salary_pence: number; other_income_pence: number; paid_back_pence: number; from_people_pence: number; since: string } | null;
+  all_time: { income_pence: number; since: string } | null;
+  months: { month: string; salary_pence: number; other_income_pence: number; paid_back_pence: number; from_people_pence: number }[];
+  sources: EarningSource[];
+  usual_salary_day: number | null;
 };
 
 export type Recurring = {
@@ -169,6 +200,7 @@ export const api = {
     request<Summary>(`/api/summary/${month}${qs({ account_id: accountId })}`),
   recurring: (accountId?: number | null) =>
     request<{ items: Recurring[]; active_monthly_total_pence: number }>(`/api/recurring${qs({ account_id: accountId })}`),
+  earnings: (accountId?: number | null) => request<Earnings>(`/api/earnings${qs({ account_id: accountId })}`),
   categories: () => request<string[]>("/api/categories"),
   imports: () => request<ImportRow[]>("/api/uploads"),
   accounts: () => request<Account[]>("/api/accounts"),

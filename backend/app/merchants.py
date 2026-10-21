@@ -66,7 +66,9 @@ _LOCATIONS = {"LONDON", "LEICESTER", "MANCHESTER", "BIRMINGHAM", "LEEDS", "GLASG
 
 def normalise(description: str) -> tuple[str, str]:
     """Return (merchant_key, display_name)."""
-    text = " ".join(description.upper().split())
+    from .categories import split_code
+
+    text = split_code(" ".join(description.upper().split()))[1]
     transfer = _TRANSFER.match(text)
     if transfer:
         direction = "to" if transfer.group(1) == "TO" else "from"

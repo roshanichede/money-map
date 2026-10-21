@@ -13,6 +13,7 @@ from .merchants import mask_numbers, normalise
 from .models import Account, MerchantRule, Transaction, Upload
 from .money import fmt_gbp
 from .parsers import ParseResult, parse_statement
+from .income import detect_salary
 from .transfers import link_transfers
 
 
@@ -157,6 +158,7 @@ def import_file(session: Session, user_id: int, filename: str, content: bytes, *
     upload.rows_added = added
     upload.duplicates_skipped = len(result.transactions) - added
     session.flush()
+    detect_salary(session, user_id)
     upload.transfers_matched = link_transfers(session, user_id)
     session.commit()
     return upload

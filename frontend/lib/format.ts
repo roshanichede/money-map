@@ -36,3 +36,21 @@ export function isPartialMonth(month: string, lastDate: string) {
 export function plural(n: number, one: string, many = one + "s") {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+/** "Other" reads like a real category; it really means we couldn't tell. */
+export const categoryLabel = (c: string) => (c === "Other" ? "Not sorted yet" : c);
+
+/** A month-on-month change in words: "£45 more", "£24 less", "new", "same". */
+export function changeWords(delta: number, prev: number) {
+  if (Math.round(delta / 100) === 0) return "same";
+  if (prev === 0) return "new";
+  return `${moneyRound(Math.abs(delta))} ${delta > 0 ? "more" : "less"}`;
+}
+
+export const KIND_TAG: Record<string, { label: string; title: string } | undefined> = {
+  salary: { label: "salary", title: "Counted as earnings: regular pay from an employer" },
+  income: { label: "income", title: "Counted as earnings: interest or a one-off payment from a company" },
+  paid_back: { label: "paid back", title: "A person paying their share of something (the note says what), so it's taken off that spending, not counted as earnings" },
+  from_person: { label: "from a person", title: "Money from a person with no note saying what for: not counted as earnings or spending" },
+  refund: { label: "refund", title: "A refund from a shop, taken off your spending" },
+};

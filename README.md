@@ -14,6 +14,8 @@ Built because Lloyds doesn't email transaction alerts, has no personal API, and 
 | **Duplicate-safe** | Upload overlapping exports, or a PDF and a CSV of the same month: each payment is counted once. |
 | **Reconciled to the penny** | Every file is checked: opening balance + transactions = closing balance. A missing row is flagged. |
 | **Categories that learn** | 200+ UK merchant keywords and 70+ brand names. Fix one Pret payment and every Pret payment follows, now and in future uploads. |
+| **Earnings, read honestly** | Salary is pay that arrives by payroll (BGC) or from the same company most months, even when shift pay varies. Money from people is never earnings: a flatmate's RENT share or a friend's CAB share is taken off that spending, and money with no note stays out of both. Self-transfers and card refunds are recognised too. |
+| **What stands out** | Each month gets a few plain sentences: the biggest cost, what went up and why, what isn't sorted yet, when your pay arrived. |
 | **Regular payments** | Weekly / monthly / quarterly / yearly charges with stable amounts, and when the next one is due. |
 | **Plain-English summary** | Each month opens with a sentence: what you spent, how it compares, and what drove it. |
 | **Ask your money** | Chat answers are calculated from your transactions first. With an API key, Claude words them, and any £ figure or % it writes that isn't in the calculated facts gets the reply thrown out. |
@@ -56,7 +58,7 @@ Add `ANTHROPIC_API_KEY` to `.env`.
 
 ### Tests
 
-`cd backend && .venv/bin/pytest`: 42 tests covering parsers, duplicates, reconciliation, accounts, transfer matching, credit cards, number masking, user isolation, the v1 database upgrade, categorisation, recurring payments and the chat guardrail.
+`cd backend && .venv/bin/pytest`: 63 tests covering parsers, money-in classification (salary, paid back, refunds, self-transfers), duplicates, reconciliation, accounts, transfer matching, credit cards, number masking, user isolation, the v1 database upgrade, categorisation, recurring payments and the chat guardrail.
 
 ## How it fits together
 
@@ -71,7 +73,8 @@ backend/   FastAPI + SQLAlchemy (SQLite by default; DATABASE_URL for Postgres)
   app/merchants.py  raw description → merchant ("PAYPAL *NETFLIX.COM 402…" → Netflix)
   app/categories.py UK merchant rules + Lloyds transaction-type codes
   app/recurring.py  regular-payment detection
-  app/insights.py   every number shown anywhere (the model never calculates)
+  app/income.py     salary detection, and re-sorting existing data when the rules improve
+  app/insights.py   every number shown anywhere, earnings and highlights (the model never calculates)
   app/chat.py       question → facts → answer → figure check
   app/migrate.py    upgrades a v1 database in place (backup first)
   sample_data/      generator for three synthetic Lloyds accounts

@@ -13,7 +13,7 @@ def test_merchant_normalisation():
 
 def test_categoriser():
     assert categorise("DELIVEROO", "DELIVEROO", "DEB", -2000) == "Takeaways"
-    assert categorise("ACME LTD SALARY", "ACME LTD", "BGC", 200000) == "Income"
+    assert categorise("ACME LTD SALARY", "ACME LTD", "BGC", 200000) == "Salary"
     assert categorise("TO A/C 87654321 SAVINGS", "TO A", "TFR", -30000) == "Transfers"
     assert categorise("CITY LETTINGS RENT", "CITY LETTINGS RENT", "SO", -85000) == "Rent & housing"
     assert categorise("SOMETHING UNKNOWN", "SOMETHING UNKNOWN", "DD", -1000) == "Bills & utilities"

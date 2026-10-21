@@ -42,7 +42,7 @@ export function MonthsChart({ months, selected, onSelect }: { months: MonthRow[]
         <h2 id="months-h">Month by month</h2>
         <div className="legend">
           <span><i style={{ background: "var(--spend)" }} />Spent</span>
-          <span><i style={{ background: "var(--income)" }} />Came in</span>
+          <span><i style={{ background: "var(--income)" }} />Earned</span>
           <button className="btn-link" onClick={() => setAsTable((v) => !v)}>
             {asTable ? "Show chart" : "Show as table"}
           </button>
@@ -52,7 +52,7 @@ export function MonthsChart({ months, selected, onSelect }: { months: MonthRow[]
       {asTable ? (
         <table className="table">
           <thead>
-            <tr><th>Month</th><th className="right">Spent</th><th className="right">Came in</th><th className="right">Left over</th></tr>
+            <tr><th>Month</th><th className="right">Spent</th><th className="right">Earned</th><th className="right">Left over</th></tr>
           </thead>
           <tbody>
             {months.map((m) => (
@@ -116,7 +116,7 @@ export function MonthsChart({ months, selected, onSelect }: { months: MonthRow[]
             >
               <b>{monthLabel(hovered.month)}</b>
               <div className="row"><span><i style={{ background: "var(--spend)" }} />Spent</span><span className="num">{money(hovered.spend_pence)}</span></div>
-              <div className="row"><span><i style={{ background: "var(--income)" }} />Came in</span><span className="num">{money(hovered.income_pence)}</span></div>
+              <div className="row"><span><i style={{ background: "var(--income)" }} />Earned</span><span className="num">{money(hovered.income_pence)}</span></div>
               <div className="row quiet"><span>Left over</span><span className="num">{signedMoney(hovered.net_pence)}</span></div>
             </div>
           )}

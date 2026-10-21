@@ -77,6 +77,15 @@ class Transaction(Base):
     dedupe_key: Mapped[str] = mapped_column(String(64))
 
 
+class AppMeta(Base):
+    """Small key/value store, e.g. which version of the categorising rules existing data was sorted with."""
+
+    __tablename__ = "app_meta"
+
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255))
+
+
 class MerchantRule(Base):
     """A category the user taught us: every transaction with this merchant_key gets it."""
 

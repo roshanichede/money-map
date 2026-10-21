@@ -92,6 +92,14 @@ def build_transactions(start: date, end: date, opening_pence: int, extra=()):
         d += timedelta(days=1)
     if any(r[0] == date(2026, 10, 17) for r in rows) or start <= date(2026, 10, 17) <= end:
         rows.append((date(2026, 10, 17), "DEB", "RYANAIR LTD CD 4821", -18_900))
+    # Money in that isn't salary: a freelance job, and friends paying back their share
+    for when, typ, desc, amt in ((date(2026, 8, 21), "FPI", "BRIGHTPATH STUDIO LTD INV 014", 35_000),
+                                 (date(2026, 9, 12), "DEB", "UBER *TRIP HELP.UBER.COM CD 4821", -2_380),
+                                 (date(2026, 9, 13), "FPI", "PRIYA SHAH CAB", 1_190),
+                                 (date(2026, 9, 26), "FPI", "RAHUL K FOOD", 1_850),
+                                 (date(2026, 10, 11), "FPI", "ANNA LEE", 2_000)):
+        if start <= when <= end:
+            rows.append((when, typ, desc, amt))
     rows.sort(key=lambda r: r[0])
     balance = opening_pence
     out = []

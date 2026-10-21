@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { SessionUser } from "@/auth";
-import { api, type Account, type Overview, type Recurring, type Summary } from "@/lib/api";
+import { api, type Account, type Earnings, type Overview, type Recurring, type Summary } from "@/lib/api";
 import { isUnfinished, monthLabel } from "@/lib/format";
 import { Accounts } from "./Accounts";
 import { CategoryBars } from "./CategoryBars";
 import { ChatDrawer } from "./Chat";
+import { Highlights } from "./Highlights";
 import { IconChat, IconUpload } from "./icons";
+import { MoneyIn } from "./MoneyIn";
 import { MonthsChart } from "./MonthsChart";
 import { RecurringList } from "./RecurringList";
 import { Sidebar, VIEWS, type View } from "./Sidebar";
@@ -33,6 +35,8 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
   const [month, setMonth] = useState<string | null>(null); // "all" is allowed on the Transactions view
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recurring, setRecurring] = useState<RecurringData | null>(null);
+  const [earnings, setEarnings] = useState<Earnings | null>(null);
+  const [search, setSearch] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -50,6 +54,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
     return () => window.removeEventListener("hashchange", sync);
   }, []);
   const go = useCallback((v: View) => {
+    if (v !== "transactions") setSearch("");
     window.location.hash = `/${v}`;
     window.scrollTo({ top: 0 });
   }, []);
@@ -68,6 +73,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
       })
       .catch((e) => setError(e.message));
     api.recurring(acct).then(setRecurring).catch(() => {});
+    api.earnings(acct).then(setEarnings).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -111,7 +117,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
     return [
       prev ? `Why did ${last} cost more or less than ${prev}?` : `Where did my money go in ${last}?`,
       "How much did I spend on takeaways this month?",
-      "What subscriptions do I have?",
+      "How much did I earn?",
       prev ? `Where did my money go in ${prev}?` : "How much did I spend on groceries?",
     ];
   }, [months, latest]);
@@ -131,8 +137,13 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
     body = summary && monthRow && summary.month === overviewMonth ? (
       <div className="stack">
         <SummarySentence summary={summary} month={monthRow} partial={isUnfinished(monthRow, months)} />
-        <Stats summary={summary} recurringMonthly={recurring?.active_monthly_total_pence ?? 0}
+        <Stats summary={summary} earnings={earnings} recurringMonthly={recurring?.active_monthly_total_pence ?? 0}
                partial={isUnfinished(monthRow, months)} />
+        <div className="grid-2">
+          <Highlights items={summary.highlights} onCategory={(c) => { setCategory(c); go("transactions"); }} />
+          {earnings && <MoneyIn earnings={earnings}
+                                onSeePayer={(name) => { setCategory(null); setMonth("all"); go("transactions"); setSearch(name); }} />}
+        </div>
         <div className="grid-2-wide">
           <CategoryBars summary={summary} onSelect={(c) => { setCategory(c); go("transactions"); }} />
           {recurring && <RecurringList items={recurring.items} monthlyTotal={recurring.active_monthly_total_pence}
@@ -146,7 +157,8 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
     ) : <div className="skeleton" aria-busy="true" />;
   } else if (view === "transactions") {
     body = (
-      <Transactions month={month === "all" ? "" : overviewMonth ?? ""} accountId={accountId} accounts={accounts}
+      <Transactions key={search} initialQuery={search}
+                    month={month === "all" ? "" : overviewMonth ?? ""} accountId={accountId} accounts={accounts}
                     category={category} onCategory={setCategory} categories={categories} refreshKey={refreshKey}
                     onRecategorised={(m) => { setToast(m); refresh(); }} />
     );

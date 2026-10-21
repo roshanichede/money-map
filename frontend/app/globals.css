@@ -127,7 +127,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .card-head h2 { font-size: 15px; }
 .card-head p { margin: 0; color: var(--muted); font-size: 12.5px; }
 .stack { display: grid; gap: 16px; }
-.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .grid-2-wide { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 1100px) { .grid-2, .grid-2-wide { grid-template-columns: minmax(0, 1fr); } }
 
@@ -289,3 +289,26 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .error-box { border: 1px solid var(--bad); color: var(--bad); border-radius: var(--r-ctl); padding: 9px 12px; font-size: 13px; background: var(--card); }
 .banner { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); background: var(--card); border-radius: var(--r-card); padding: 12px 14px; font-size: 13px; }
 .skeleton { min-height: 60vh; }
+
+/* ---------- what stands out, money in ---------- */
+.highlights { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hl { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: baseline; line-height: 1.45; }
+.hl-mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--sunken); color: var(--ink-2); transform: translateY(5px); }
+.hl-up .hl-mark { color: var(--bad); }
+.hl-down .hl-mark { color: var(--good); }
+.hl-unsorted .hl-mark { color: var(--bad); font-weight: 700; }
+.hl-paid_back .hl-mark, .hl-from_people .hl-mark, .hl-salary .hl-mark { color: var(--income); }
+.sources { list-style: none; margin: 0; padding: 0; }
+.source-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto 84px; gap: 10px; align-items: center; padding: 7px 6px; border: 0; background: none; border-radius: var(--r-ctl); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.source-row:hover { background: var(--sunken); }
+.source-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-val { text-align: right; font-weight: 600; }
+.tag-salary, .tag-income { color: var(--income); border-color: color-mix(in srgb, var(--income) 35%, transparent); background: color-mix(in srgb, var(--income) 8%, transparent); }
+.tag-paid_back, .tag-refund, .tag-from_person { color: var(--ink-2); }
+.explain div { grid-template-columns: 104px minmax(0, 1fr) !important; }
+.explain { margin: 12px 0 0; padding: 12px 14px; background: var(--sunken); border-radius: var(--r-ctl); display: grid; gap: 10px; }
+.explain div { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.explain dd { margin: 0; color: var(--ink-2); font-size: 13px; }
+.explain p { margin: 0; }
+.cat-name.unsorted { color: var(--bad); }
+.stat-earned dd { color: var(--ink); }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { api, type Account, type Txn } from "@/lib/api";
-import { money, shortDate } from "@/lib/format";
+import { categoryLabel, KIND_TAG, money, shortDate } from "@/lib/format";
 
 type Props = {
   month: string;
@@ -17,6 +17,8 @@ type Props = {
   /** Compact mode for the overview: no filters, a few rows and a "See all" link. */
   limit?: number;
   onSeeAll?: () => void;
+  /** Start with this search, e.g. a payer picked from "Money in". */
+  initialQuery?: string;
 };
 
 const PAGE = 30;
@@ -24,7 +26,7 @@ const PAGE = 30;
 export function Transactions(props: Props) {
   const { month, accountId, accounts, category, onCategory, categories, refreshKey, onRecategorised, limit, onSeeAll } = props;
   const [rows, setRows] = useState<Txn[]>([]);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(props.initialQuery ?? "");
   const [error, setError] = useState<string | null>(null);
   const filterKey = `${month}|${accountId}|${category}|${q}`;
   const [page, setPage] = useState({ key: filterKey, shown: PAGE });
@@ -67,7 +69,7 @@ export function Transactions(props: Props) {
           <label className="visually-hidden" htmlFor="txn-cat">Category</label>
           <select id="txn-cat" className="select" value={category ?? ""} onChange={(e) => onCategory(e.target.value || null)}>
             <option value="">All categories</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            {categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
           </select>
           <span className="muted small">{rows.length} {rows.length === 1 ? "transaction" : "transactions"}</span>
         </div>
@@ -90,6 +92,9 @@ export function Transactions(props: Props) {
                 <td className="num quiet nowrap">{shortDate(t.date)}</td>
                 <td>
                   {t.merchant} {t.is_transfer && <span className="tag" title="Matched with a payment in another of your accounts">transfer</span>}
+                  {!t.is_transfer && KIND_TAG[t.kind] && (
+                    <span className={`tag tag-${t.kind}`} title={KIND_TAG[t.kind]!.title}>{KIND_TAG[t.kind]!.label}</span>
+                  )}
                   <span className="sub" title={t.description}>{t.description}</span>
                 </td>
                 {showAccount && <td className="quiet small acct-cell" title={names.get(t.account_id)}>{names.get(t.account_id)}</td>}
@@ -97,7 +102,7 @@ export function Transactions(props: Props) {
                   <label className="visually-hidden" htmlFor={`cat-${t.id}`}>Category for {t.merchant}</label>
                   <select id={`cat-${t.id}`} className={`cat-select${t.category === "Other" ? " other" : ""}`}
                           value={t.category} onChange={(e) => recategorise(t, e.target.value)}>
-                    {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {categories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
                   </select>
                 </td>
                 <td className={`right num${t.amount_pence > 0 ? " amount-in" : ""}`}>

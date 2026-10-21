@@ -11,7 +11,7 @@ import os
 import re
 from datetime import date
 
-from .categories import CATEGORIES
+from .categories import CATEGORIES, INCOME_CATEGORIES
 from .insights import (by_category, by_merchant, compare_months, in_month, is_spend, month_key, months_overview,
                        totals, txn_dict)
 from .models import Transaction
@@ -238,12 +238,27 @@ def build_answer(question: str, txns: list[Transaction]) -> dict:
 
     elif intent == "income":
         rows = [{"month": _label(o["month"]) + _coverage_note(o["month"], overview),
-                 "income": fmt_gbp(o["income_pence"]), "spend": fmt_gbp(o["spend_pence"]),
-                 "net": fmt_gbp(o["net_pence"], signed=True)} for o in overview_list
+                 "earned": fmt_gbp(o["income_pence"]), "salary": fmt_gbp(o["salary_pence"]),
+                 "other_income": fmt_gbp(o["other_income_pence"]), "paid_back": fmt_gbp(o["paid_back_pence"]),
+                 "from_people": fmt_gbp(o["from_people_pence"]),
+                 "spend": fmt_gbp(o["spend_pence"]), "net": fmt_gbp(o["net_pence"], signed=True),
+                 "_paid_back_pence": o["paid_back_pence"]} for o in overview_list
                 if not months or o["month"] in months]
-        facts["income"] = rows
-        answer = " ".join(f"{r['month']}: income {r['income']}, spending {r['spend']}, net {r['net']}." for r in rows[-3:])
-        evidence = [t for t in txns if t.category == "Income" and (not months or month_key(t.date) in months)][-6:]
+        facts["earnings"] = [{k: v for k, v in r.items() if not k.startswith("_")} for r in rows]
+        facts["how_money_in_is_sorted"] = ("Salary = regular payments from the same employer. Other income = "
+                                           "interest and one-off payments from companies. Money from people "
+                                           "(e.g. a friend's share of a cab) is 'paid back': it reduces spending "
+                                           "and is not counted as earnings. Money from people with no note is "
+                                           "'from people': neither earnings nor spending.")
+        parts = []
+        for r in rows[-3:]:
+            line = f"{r['month']}: you earned {r['earned']} (salary {r['salary']}, other {r['other_income']})"
+            if r["_paid_back_pence"]:
+                line += f"; people paid you back {r['paid_back']}, which isn't counted as earnings"
+            parts.append(line + f". Spending {r['spend']}, net {r['net']}.")
+        answer = " ".join(parts)
+        evidence = [t for t in txns if t.category in INCOME_CATEGORIES
+                    and (not months or month_key(t.date) in months)][-6:]
 
     elif intent == "spend":
         scope_months = months or [latest]

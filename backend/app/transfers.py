@@ -13,7 +13,7 @@ from .models import Transaction
 WINDOW_DAYS = 4
 TRANSFER_TYPES = {"TFR", "FPO", "FPI", "BGC", "SO", "DD", "BP", "PAY", "CR"}
 TRANSFER_WORDS = re.compile(r"TRANSFER|\bA/C\b|SAVINGS|PAYMENT|CREDIT CARD|\bCARD\b|\bTO\b|\bFROM\b|\bPOT\b")
-LIKELY_CATEGORIES = {"Transfers", "Card repayments", "Income", "Other", "Bills & utilities"}
+LIKELY_CATEGORIES = {"Transfers", "Card repayments", "Other income", "From people", "Other", "Bills & utilities"}
 
 
 def _looks_like_transfer(t: Transaction) -> bool:
