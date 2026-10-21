@@ -21,7 +21,8 @@ from .db import get_session, init_db
 from .importer import AccountChoiceError, import_file
 from .insights import (all_transactions, by_category, by_merchant, categorised_rate, compare_months, earnings,
                        highlights, in_month, months_overview, totals, txn_dict)
-from .models import ACCOUNT_TYPES, Account, MerchantRule, Transaction, Upload, User
+from . import learning, teach
+from .models import ACCOUNT_TYPES, Account, Dismissed, MerchantRule, Rule, Transaction, Upload, User
 from .parsers import ParseError
 from .recurring import detect_recurring
 from .transfers import link_transfers, unlink_account
@@ -237,7 +238,7 @@ def transactions(month: str | None = None, category: str | None = None, q: str |
 
 class CategoryUpdate(BaseModel):
     category: str
-    apply_to_merchant: bool = True
+    apply_to_merchant: bool = True  # the app sends False and then offers the ways to apply it more widely
 
 
 @app.patch("/api/transactions/{txn_id}")
@@ -264,7 +265,74 @@ def set_category(txn_id: int, body: CategoryUpdate, user: User = Depends(current
                 other.category, other.category_source = body.category, "learned"
                 updated += 1
     session.commit()
-    return {"updated": updated, "merchant": txn.merchant, "category": body.category}
+    options = [] if body.apply_to_merchant else learning.scope_options(session, user.id, txn, body.category)
+    return {"updated": updated, "merchant": txn.merchant, "category": body.category, "options": options}
+
+
+# ---------- teaching MoneyMap ----------
+
+class RuleSpec(BaseModel):
+    payee: str = ""
+    word: str = ""
+    max_pence: int | None = None
+    merchant_key: str = ""
+
+
+class NewRule(BaseModel):
+    spec: RuleSpec
+    category: str
+    taught_via: str = "edit"
+
+
+def _clean_spec(s: RuleSpec) -> "learning.Spec":
+    up = lambda x: " ".join(x.upper().split())[:120]  # noqa: E731
+    if s.max_pence is not None and s.max_pence <= 0:
+        raise HTTPException(400, "The amount limit must be more than £0.")
+    return learning.Spec(payee=up(s.payee), word=up(s.word)[:60], max_pence=s.max_pence, merchant_key=up(s.merchant_key))
+
+
+@app.get("/api/rules")
+def rules(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return learning.list_rules(session, user.id)
+
+
+@app.post("/api/rules/preview")
+def rule_preview(body: NewRule, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    if body.category not in CATEGORIES:
+        raise HTTPException(400, "Unknown category.")
+    return learning.preview(session, user.id, _clean_spec(body.spec), body.category)
+
+
+@app.post("/api/rules")
+def add_rule(body: NewRule, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    try:
+        return learning.save_rule(session, user.id, _clean_spec(body.spec), body.category,
+                                  body.taught_via if body.taught_via in ("edit", "question", "chat") else "edit")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.delete("/api/rules/{rule_id}")
+def remove_rule(rule_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    try:
+        return {"moved": learning.delete_rule(session, user.id, rule_id)}
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/questions")
+def questions(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return learning.questions(session, user.id)
+
+
+class Dismiss(BaseModel):
+    key: str
+
+
+@app.post("/api/questions/dismiss")
+def dismiss_question(body: Dismiss, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    learning.dismiss(session, user.id, body.key)
+    return {"ok": True}
 
 
 @app.get("/api/recurring")
@@ -285,6 +353,10 @@ def ask(body: Question, user: User = Depends(current_user), session: Session = D
     question = body.question.strip()[:500]
     if not question:
         raise HTTPException(400, "Ask a question.")
+    taught = teach.proposal(question, session, user.id)  # "garba is entertainment" teaches instead of asks
+    if taught:
+        return {"answer": taught["answer"], "source": "rules", "guardrail": "not_used", "intent": "teach",
+                "facts": {}, "evidence": [], "proposal": taught["proposal"]}
     return chat.ask(question, all_transactions(session, user.id, _own_account(session, user, body.account_id)))
 
 
@@ -310,7 +382,7 @@ def delete_all(user: User = Depends(current_user), session: Session = Depends(ge
         "transactions": session.scalar(select(func.count()).select_from(Transaction).where(Transaction.user_id == user.id)),
         "accounts": session.scalar(select(func.count()).select_from(Account).where(Account.user_id == user.id)),
     }
-    for model in (Transaction, MerchantRule, Upload, Account):
+    for model in (Transaction, MerchantRule, Rule, Dismissed, Upload, Account):
         session.execute(delete(model).where(model.user_id == user.id))
     session.commit()
     return {"deleted": counts}

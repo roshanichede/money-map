@@ -97,3 +97,30 @@ class MerchantRule(Base):
     merchant_key: Mapped[str] = mapped_column(String(120))
     category: Mapped[str] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class Rule(Base):
+    """Something the user taught: payments to a person, with a word in the note, and/or up to an amount,
+    go to a category. Every condition that's set must match; the most specific rule wins."""
+
+    __tablename__ = "rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    payee: Mapped[str] = mapped_column(String(120), default="")   # e.g. "PREETI MISAL"
+    word: Mapped[str] = mapped_column(String(60), default="")     # e.g. "GARBA"
+    max_pence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # only payments up to this size
+    category: Mapped[str] = mapped_column(String(40))
+    taught_via: Mapped[str] = mapped_column(String(20), default="edit")  # edit | question | chat
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class Dismissed(Base):
+    """Questions the user chose to skip."""
+
+    __tablename__ = "dismissed_questions"
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_dismissed_user_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(200))

@@ -142,6 +142,10 @@ def categorise(description: str, merchant_key: str, txn_type: str, amount_pence:
     for cat in _ORDER:
         if _KEYWORD_RE[cat].search(text):
             return cat
+    if code in ("FPO", "BP", "SO") and not is_company(text):
+        for cat, rx in _PAID_BACK_RE.items():  # paying a person: your note says what for ("UTILITIES", "CAB")
+            if rx.search(description.upper()):
+                return cat
     if code in TYPE_DIRECT:
         return "Bills & utilities"
     return "Other"

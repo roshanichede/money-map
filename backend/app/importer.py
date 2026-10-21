@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 from .accounts import create_account, find_by_number, find_by_overlap, guess_type
 from .categories import categorise
+from .learning import apply_rules
 from .merchants import mask_numbers, normalise
-from .models import Account, MerchantRule, Transaction, Upload
+from .models import Account, Transaction, Upload
 from .money import fmt_gbp
 from .parsers import ParseResult, parse_statement
 from .income import detect_salary
@@ -136,18 +137,13 @@ def import_file(session: Session, user_id: int, filename: str, content: bytes, *
     keys = dedupe_keys(result, account.id)
     existing = set(session.scalars(select(Transaction.dedupe_key).where(
         Transaction.user_id == user_id, Transaction.dedupe_key.in_(keys))))
-    rules = {r.merchant_key: r.category
-             for r in session.scalars(select(MerchantRule).where(MerchantRule.user_id == user_id))}
     added = 0
     for t, key in zip(result.transactions, keys):
         if key in existing:
             continue
         existing.add(key)
         merchant_key, merchant = normalise(t.description)
-        if merchant_key in rules:
-            category, source = rules[merchant_key], "learned"
-        else:
-            category, source = categorise(t.description, merchant_key, t.txn_type, t.amount_pence), "rule"
+        category, source = categorise(t.description, merchant_key, t.txn_type, t.amount_pence), "rule"
         session.add(Transaction(
             user_id=user_id, account_id=account.id, upload_id=upload.id, date=t.date,
             description=t.description[:255], merchant=merchant, merchant_key=merchant_key, txn_type=t.txn_type,
@@ -158,6 +154,7 @@ def import_file(session: Session, user_id: int, filename: str, content: bytes, *
     upload.rows_added = added
     upload.duplicates_skipped = len(result.transactions) - added
     session.flush()
+    apply_rules(session, user_id)  # what you've taught MoneyMap applies to new statements too
     detect_salary(session, user_id)
     upload.transfers_matched = link_transfers(session, user_id)
     session.commit()

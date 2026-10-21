@@ -155,12 +155,43 @@ export type ImportRow = {
   account: string | null;
 };
 
+export type RuleSpec = { payee: string; word: string; max_pence: number | null; merchant_key: string };
+export type ScopeOption = { label: string; spec: RuleSpec; matches: number; would_move: number };
+export type RulePreview = {
+  rule: string;
+  matches: number;
+  would_move: number;
+  set_by_hand: number;
+  total_pence: number;
+  examples: { date: string; description: string; amount_pence: number; category: string }[];
+};
+export type Proposal = RulePreview & {
+  spec: RuleSpec;
+  category: string;
+  alternatives: { spec: RuleSpec; rule: string; matches: number; would_move: number }[];
+};
+export type RuleRow = { id: string; text: string; category: string; payments: number; taught_via: string; created_at: string };
+export type Question = {
+  key: string;
+  direction: "in" | "out";
+  name: string;
+  word: string;
+  spec: RuleSpec;
+  count: number;
+  total_pence: number;
+  largest_pence: number;
+  question: string;
+  examples: { date: string; description: string; amount_pence: number }[];
+  alternatives: { label: string; spec: RuleSpec }[];
+};
+
 export type ChatReply = {
   answer: string;
   source: "claude" | "rules";
   guardrail: string;
   intent: string;
   evidence: Txn[];
+  proposal?: Proposal | null;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -221,11 +252,17 @@ export const api = {
   },
   demo: () => request<{ results: UploadResult[] }>("/api/demo", { method: "POST" }),
   setCategory: (id: number, category: string, applyToMerchant = true) =>
-    request<{ updated: number; merchant: string; category: string }>(`/api/transactions/${id}`, {
+    request<{ updated: number; merchant: string; category: string; options: ScopeOption[] }>(`/api/transactions/${id}`, {
       method: "PATCH",
       ...json({ category, apply_to_merchant: applyToMerchant }),
     }),
   ask: (question: string, accountId?: number | null) =>
     request<ChatReply>("/api/chat", { method: "POST", ...json({ question, account_id: accountId ?? null }) }),
+  rules: () => request<RuleRow[]>("/api/rules"),
+  addRule: (spec: RuleSpec, category: string, taughtVia: "edit" | "question" | "chat") =>
+    request<{ rule: string; moved: number }>("/api/rules", { method: "POST", ...json({ spec, category, taught_via: taughtVia }) }),
+  deleteRule: (id: string) => request<{ moved: number }>(`/api/rules/${id}`, { method: "DELETE" }),
+  questions: () => request<{ total: number; items: Question[] }>("/api/questions"),
+  dismissQuestion: (key: string) => request<{ ok: boolean }>("/api/questions/dismiss", { method: "POST", ...json({ key }) }),
   deleteAll: () => request<{ deleted: { transactions: number } }>("/api/data", { method: "DELETE" }),
 };

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.categories import categorise, split_code
-from app.income import detect_salary, upgrade_existing_data
+from app.income import RULES_VERSION, detect_salary, upgrade_existing_data
 from app.merchants import normalise
 from app.models import Account, AppMeta, MerchantRule, Transaction, Upload, User
 
@@ -103,7 +103,7 @@ def test_old_income_bucket_is_resorted_once(engine):
     assert mine.category == "Other income"  # the user's own choice is kept, just renamed
     rule = s.scalar(select(MerchantRule))
     assert rule.merchant_key == gym.merchant_key == normalise("THE GYM LTD")[0]  # future gym payments still match
-    assert s.get(AppMeta, "rules_version").value == "2"
+    assert s.get(AppMeta, "rules_version").value == str(RULES_VERSION)
     friend.category = "Gifts & charity"
     s.commit()
     upgrade_existing_data(s)  # already upgraded: nothing changes

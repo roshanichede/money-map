@@ -9,6 +9,7 @@ import { Accounts } from "./Accounts";
 import { CategoryBars } from "./CategoryBars";
 import { ChatDrawer } from "./Chat";
 import { Highlights } from "./Highlights";
+import { LearnCard } from "./LearnCard";
 import { IconChat, IconUpload } from "./icons";
 import { MoneyIn } from "./MoneyIn";
 import { MonthsChart } from "./MonthsChart";
@@ -139,6 +140,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
         <SummarySentence summary={summary} month={monthRow} partial={isUnfinished(monthRow, months)} />
         <Stats summary={summary} earnings={earnings} recurringMonthly={recurring?.active_monthly_total_pence ?? 0}
                partial={isUnfinished(monthRow, months)} />
+        <LearnCard categories={categories} refreshKey={refreshKey} onTaught={(m) => { setToast(m); refresh(); }} />
         <div className="grid-2">
           <Highlights items={summary.highlights} onCategory={(c) => { setCategory(c); go("transactions"); }} />
           {earnings && <MoneyIn earnings={earnings}
@@ -170,7 +172,8 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
                      onOpenAccount={(id) => { chooseAccount(id); go("transactions"); }} />;
   } else {
     body = <YourData refreshKey={refreshKey} categorisedRate={overview.categorised_rate} loginEnabled={loginEnabled}
-                     onDeleted={() => { setToast("All your data was deleted."); setAccountId(null); refresh(false); }} />;
+                     onDeleted={() => { setToast("All your data was deleted."); setAccountId(null); refresh(false); }}
+                     onRuleDeleted={(m) => { setToast(m); refresh(); }} />;
   }
 
   return (
@@ -214,7 +217,8 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
         {body}
       </main>
       <ChatDrawer key={`${dataVersion}-${accountId}`} open={chatOpen} onClose={() => setChatOpen(false)}
-                  suggestions={suggestions} accountId={accountId} scopeLabel={accountName} />
+                  suggestions={suggestions} accountId={accountId} scopeLabel={accountName}
+                  onTaught={() => refresh()} />
       <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} accounts={accounts} onImported={() => refresh(false)} />
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>

@@ -2,17 +2,27 @@
 
 import { useEffect, useState } from "react";
 
-import { api, type ImportRow } from "@/lib/api";
+import { api, type ImportRow, type RuleRow } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { Check, Dash, Warn } from "./icons";
 
-export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted }: {
+const VIA: Record<string, string> = { edit: "from a category you changed", question: "from your answer", chat: "from the chat" };
+
+export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted, onRuleDeleted }: {
   refreshKey: number; categorisedRate: number; loginEnabled: boolean; onDeleted: () => void;
+  onRuleDeleted: (message: string) => void;
 }) {
   const [imports, setImports] = useState<ImportRow[]>([]);
+  const [rules, setRules] = useState<RuleRow[]>([]);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => { api.imports().then(setImports).catch(() => setImports([])); }, [refreshKey]);
+  useEffect(() => { api.rules().then(setRules).catch(() => setRules([])); }, [refreshKey]);
+
+  async function removeRule(r: RuleRow) {
+    const res = await api.deleteRule(r.id);
+    onRuleDeleted(`Forgot “${r.text}”. ${plural(res.moved, "payment")} went back to the built-in sorting.`);
+  }
 
   async function remove() {
     await api.deleteAll();
@@ -43,6 +53,25 @@ export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted 
         )}
       </section>
       <div className="stack" style={{ alignContent: "start" }}>
+        <section className="card" aria-labelledby="rules-h">
+          <div className="card-head">
+            <h2 id="rules-h">What MoneyMap has learned</h2>
+            <p>{plural(rules.length, "rule")}</p>
+          </div>
+          {rules.length === 0 ? (
+            <p className="quiet">Nothing yet. Change a category, answer a question on the overview, or tell the chat something like “garba is entertainment”.</p>
+          ) : (
+            <ul className="rule-list">
+              {rules.map((r) => (
+                <li key={r.id}>
+                  <span>{r.text}<span className="muted small" style={{ display: "block" }}>
+                    {plural(r.payments, "payment")} sorted by it · {VIA[r.taught_via] ?? "learned"}</span></span>
+                  <button className="btn btn-ghost small" onClick={() => removeRule(r)}>Forget</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
         <section className="card" aria-labelledby="store-h">
           <div className="card-head"><h2 id="store-h">How your data is kept</h2></div>
           <ul className="facts">
@@ -70,7 +99,7 @@ export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted 
               <button className="btn btn-danger" onClick={() => setConfirming(true)}>Delete all my data</button>
             )}
           </div>
-          {confirming && <p className="muted small" style={{ margin: "10px 0 0" }}>This removes every account, transaction and category rule. It can&apos;t be undone.</p>}
+          {confirming && <p className="muted small" style={{ margin: "10px 0 0" }}>This removes every account, transaction and everything MoneyMap has learned. It can&apos;t be undone.</p>}
         </section>
       </div>
     </div>

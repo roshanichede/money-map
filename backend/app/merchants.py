@@ -50,7 +50,10 @@ _BRANDS = [(re.compile(p), name) for p, name in BRANDS]
 
 _NOISE = [
     re.compile(r"\bCD \d{4}\b.*$"),                 # Lloyds card suffix: "CD 1234 ..."
-    re.compile(r"\b\d{2}[A-Z]{3}\d{2}\b"),           # dates like 01OCT26
+    re.compile(r"••\S*"),                            # masked account numbers and references
+    re.compile(r"\b\d{1,2}[A-Z]{3}(\d{2})?\b"),       # dates like 01OCT26 or 18JAN
+    re.compile(r"\b\d{1,2}:\d{2}\b"),                 # times like 23:16 on faster payments
+    re.compile(r"\s+OD$"),                           # "overdrawn" marker at the end of a line
     re.compile(r"\b\d{2}/\d{2}(/\d{2,4})?\b"),
     re.compile(r"\bON \d{1,2} [A-Z]{3}\b"),
     re.compile(r"\b(GB|GBR|UK|IE|US|USA)\b$"),
@@ -85,7 +88,7 @@ def normalise(description: str) -> tuple[str, str]:
     for pattern in _NOISE:
         cleaned = pattern.sub(" ", cleaned)
     cleaned = re.sub(r"\.(COM|CO\.UK|CO|UK)\b", " ", cleaned)
-    words = [w for w in re.split(r"[\s,/]+", cleaned) if w and w.strip(".-'")]
+    words = [w for w in re.split(r"[\s,/]+", cleaned) if w and w.strip(".-':+&")]
     while len(words) > 1 and words[-1] in _LOCATIONS:
         words.pop()
     words = words[:4]

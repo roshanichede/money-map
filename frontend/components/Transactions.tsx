@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { api, type Account, type Txn } from "@/lib/api";
+import { api, type Account, type ScopeOption, type Txn } from "@/lib/api";
 import { categoryLabel, KIND_TAG, money, shortDate } from "@/lib/format";
 
 type Props = {
@@ -28,6 +28,8 @@ export function Transactions(props: Props) {
   const [rows, setRows] = useState<Txn[]>([]);
   const [q, setQ] = useState(props.initialQuery ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [teach, setTeach] = useState<{ txn: Txn; category: string; options: ScopeOption[] } | null>(null);
+  const [saving, setSaving] = useState(false);
   const filterKey = `${month}|${accountId}|${category}|${q}`;
   const [page, setPage] = useState({ key: filterKey, shown: PAGE });
   const shown = limit ?? (page.key === filterKey ? page.shown : PAGE);
@@ -45,14 +47,31 @@ export function Transactions(props: Props) {
 
   async function recategorise(t: Txn, next: string) {
     try {
-      const r = await api.setCategory(t.id, next, true);
-      onRecategorised(
-        r.updated > 1
-          ? `Moved ${r.updated} ${r.merchant} payments to ${next}. New ones will go there too.`
-          : `Moved ${r.merchant} to ${next}. New ${r.merchant} payments will go there too.`,
-      );
+      const r = await api.setCategory(t.id, next, false);
+      setRows((rs) => rs.map((x) => (x.id === t.id ? { ...x, category: next, category_source: "manual" } : x)));
+      if (r.options.length) setTeach({ txn: t, category: next, options: r.options });
+      else onRecategorised(`Moved this ${r.merchant} payment to ${categoryLabel(next)}.`);
     } catch (e) {
       setError((e as Error).message);
+    }
+  }
+
+  async function applyWider(o: ScopeOption | null) {
+    if (!teach) return;
+    if (!o) {
+      onRecategorised(`Moved just this payment to ${categoryLabel(teach.category)}.`);
+      setTeach(null);
+      return;
+    }
+    setSaving(true);
+    try {
+      const r = await api.addRule(o.spec, teach.category, "edit");
+      onRecategorised(`Learned: ${r.rule}. Moved ${r.moved} more ${r.moved === 1 ? "payment" : "payments"}, and new statements will follow it.`);
+      setTeach(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -60,7 +79,7 @@ export function Transactions(props: Props) {
     <section className="card" id="transactions" aria-labelledby="txn-h">
       <div className="card-head">
         <h2 id="txn-h" className={limit ? undefined : "visually-hidden"}>{limit ? "Latest transactions" : "Transactions"}</h2>
-        {!limit && <p>Change a category and every payment to that merchant follows.</p>}
+        {!limit && <p>Change a category and MoneyMap asks how widely to apply it.</p>}
       </div>
       {!limit && (
         <div className="filters">
@@ -75,6 +94,23 @@ export function Transactions(props: Props) {
         </div>
       )}
       {error && <div className="error-box">{error}</div>}
+      {teach && (
+        <div className="teach-bar" role="status">
+          <p>
+            <b>Moved to {categoryLabel(teach.category)}.</b> Should MoneyMap do the same for other payments like
+            this one ({teach.txn.merchant})?
+          </p>
+          <div className="teach-options">
+            {teach.options.map((o) => (
+              <button key={o.label} className="btn" disabled={saving} onClick={() => applyWider(o)}>
+                {o.label}
+                <span className="muted small">{o.matches} more{o.would_move < o.matches ? `, ${o.would_move} would change` : ""}</span>
+              </button>
+            ))}
+            <button className="btn btn-ghost" disabled={saving} onClick={() => applyWider(null)}>Just this one</button>
+          </div>
+        </div>
+      )}
       <div className="table-scroll">
         <table className="table">
           <thead>

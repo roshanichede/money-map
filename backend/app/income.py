@@ -9,7 +9,7 @@ from .categories import OTHER_INCOME_RE, PAY_CODES, categorise, is_company, spli
 from .merchants import normalise
 from .models import AppMeta, MerchantRule, Transaction, User
 
-RULES_VERSION = 2  # bump when categorising rules change in a way existing data should pick up
+RULES_VERSION = 3  # bump when categorising rules change in a way existing data should pick up
 
 
 def detect_salary(session: Session, user_id: int) -> int:
@@ -83,7 +83,10 @@ def upgrade_existing_data(session: Session) -> None:
         if r.category == "Income":
             r.category = "Other income"
     session.flush()
+    from .learning import apply_rules
+
     for user in session.scalars(select(User)):
+        apply_rules(session, user.id)
         detect_salary(session, user.id)
         link_transfers(session, user.id)
     if meta:

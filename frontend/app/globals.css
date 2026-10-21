@@ -312,3 +312,29 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .explain p { margin: 0; }
 .cat-name.unsorted { color: var(--bad); }
 .stat-earned dd { color: var(--ink); }
+
+/* ---------- teaching ---------- */
+.teach-bar { margin: 0 0 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: var(--accent-wash); border-radius: var(--r-ctl); }
+.teach-bar p { margin: 0 0 10px; }
+.teach-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.teach-options .btn { flex-direction: column; align-items: flex-start; gap: 0; height: auto; padding: 6px 12px; text-align: left; }
+.teach-options .btn-ghost { justify-content: center; align-self: stretch; }
+.learn-card { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.learn-q { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.learn-examples { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; }
+.learn-examples li { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 10px; font-size: 13px; color: var(--ink-2); }
+.learn-examples li span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.learn-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.learn-scope { display: grid; gap: 4px; margin: 0 0 12px; font-size: 13px; }
+.learn-scope label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.proposal { margin-top: 10px; border: 1px solid var(--line-strong); border-radius: var(--r-ctl); padding: 10px 12px; background: var(--sunken); display: grid; gap: 8px; }
+.proposal-rule { font-weight: 600; }
+.proposal ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 12.5px; color: var(--ink-2); }
+.proposal li { display: flex; justify-content: space-between; gap: 8px; }
+.proposal li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.proposal li .num { flex: none; white-space: nowrap; }
+.proposal-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.proposal-actions .btn-link { text-align: left; }
+.rule-list { list-style: none; margin: 0; padding: 0; }
+.rule-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+.rule-list li:first-child { border-top: 0; }

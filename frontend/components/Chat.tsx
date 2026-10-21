@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { api, type ChatReply } from "@/lib/api";
+import { api, type ChatReply, type Proposal, type RuleSpec } from "@/lib/api";
 import { money, plural, shortDate } from "@/lib/format";
 import { Check, IconClose } from "./icons";
 
-type Turn = { q: string; reply?: ChatReply; error?: string };
+type Turn = { q: string; reply?: ChatReply; error?: string; saved?: string };
 
 function provenance(r: ChatReply): string {
   if (r.source === "claude") return "Worded by Claude. Every figure was checked against your transactions.";
@@ -15,10 +15,44 @@ function provenance(r: ChatReply): string {
   return "Calculated directly from your transactions.";
 }
 
-type Props = { open: boolean; onClose: () => void; suggestions: string[]; accountId: number | null; scopeLabel: string };
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  suggestions: string[];
+  accountId: number | null;
+  scopeLabel: string;
+  /** Called after a rule taught in the chat moved payments, so the dashboard refreshes. */
+  onTaught: () => void;
+};
+
+function ProposalCard({ p, saved, onSave }: { p: Proposal; saved?: string; onSave: (spec: RuleSpec) => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const save = async (spec: RuleSpec) => { setBusy(true); try { await onSave(spec); } finally { setBusy(false); } };
+  if (saved) return <div className="proposal"><span><Check size={13} /> {saved}</span></div>;
+  return (
+    <div className="proposal">
+      <span className="proposal-rule">{p.rule}</span>
+      {p.examples.length > 0 && (
+        <ul>
+          {p.examples.map((e, i) => (
+            <li key={i}><span title={e.description}>{shortDate(e.date)} {e.description}</span><span className="num">{money(e.amount_pence)}</span></li>
+          ))}
+        </ul>
+      )}
+      <div className="proposal-actions">
+        <button className="btn btn-primary" disabled={busy} onClick={() => save(p.spec)}>Save this rule</button>
+        {p.alternatives.map((a) => (
+          <button key={a.rule} className="btn-link small" disabled={busy} onClick={() => save(a.spec)}>
+            Instead: {a.rule} ({plural(a.matches, "payment")})
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** The conversation survives closing the drawer; it resets when the data or the account filter changes (via key). */
-export function ChatDrawer({ open, onClose, suggestions, accountId, scopeLabel }: Props) {
+export function ChatDrawer({ open, onClose, suggestions, accountId, scopeLabel, onTaught }: Props) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,6 +86,13 @@ export function ChatDrawer({ open, onClose, suggestions, accountId, scopeLabel }
     }
   }
 
+  async function saveRule(index: number, p: Proposal, spec: RuleSpec) {
+    const r = await api.addRule(spec, p.category, "chat");
+    const msg = `Saved: ${r.rule}. Moved ${plural(r.moved, "payment")}; new statements will follow it too. You can delete it under Your data.`;
+    setTurns((t) => t.map((turn, i) => (i === index ? { ...turn, saved: msg } : turn)));
+    onTaught();
+  }
+
   if (!open) return null;
   return (
     <>
@@ -60,7 +101,7 @@ export function ChatDrawer({ open, onClose, suggestions, accountId, scopeLabel }
         <div className="drawer-head">
           <div>
             <h2 id="chat-h">Ask about your money</h2>
-            <p>Answers use only your statements ({scopeLabel}).</p>
+            <p>Answers use only your statements ({scopeLabel}). You can also teach it: “payments to Preeti up to £50 are groceries”.</p>
           </div>
           <button className="btn btn-ghost" onClick={onClose} aria-label="Close"><IconClose /></button>
         </div>
@@ -76,7 +117,10 @@ export function ChatDrawer({ open, onClose, suggestions, accountId, scopeLabel }
               {t.reply && (
                 <div style={{ marginTop: 10 }}>
                   <div className="msg-a">{t.reply.answer}</div>
-                  <div className="msg-meta"><Check size={13} /><span>{provenance(t.reply)}</span></div>
+                  {t.reply.proposal && (
+                    <ProposalCard p={t.reply.proposal} saved={t.saved} onSave={(spec) => saveRule(i, t.reply!.proposal!, spec)} />
+                  )}
+                  {t.reply.intent !== "teach" && <div className="msg-meta"><Check size={13} /><span>{provenance(t.reply)}</span></div>}
                   {t.reply.evidence.length > 0 && (
                     <details className="evidence">
                       <summary>Show the {plural(t.reply.evidence.length, "transaction")} behind this</summary>
@@ -96,7 +140,7 @@ export function ChatDrawer({ open, onClose, suggestions, accountId, scopeLabel }
         </div>
         <form className="chat-form" onSubmit={(e) => { e.preventDefault(); ask(text); }}>
           <label className="visually-hidden" htmlFor="chat-input">Your question</label>
-          <input id="chat-input" ref={inputRef} className="input" placeholder="e.g. How much on takeaways this month?"
+          <input id="chat-input" ref={inputRef} className="input" placeholder="Ask, or teach: “garba is entertainment”"
                  value={text} onChange={(e) => setText(e.target.value)} maxLength={500} />
           <button className="btn btn-primary" disabled={busy || !text.trim()}>Ask</button>
         </form>
