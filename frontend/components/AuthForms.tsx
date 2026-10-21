@@ -18,7 +18,7 @@ function GoogleG() {
 function SignInForm() {
   const [state, action, pending] = useActionState<FormState, FormData>(signInWithPassword, {});
   return (
-    <form action={action} className="auth-form">
+    <form action={action} className="auth-form" noValidate>
       <label>Email<input className="input" name="email" type="email" autoComplete="email" required defaultValue={state.email} /></label>
       <label>Password<input className="input" name="password" type="password" autoComplete="current-password" required /></label>
       {state.error && <p className="auth-error" role="alert">{state.error}</p>}
@@ -30,7 +30,7 @@ function SignInForm() {
 function SignUpForm() {
   const [state, action, pending] = useActionState<FormState, FormData>(signUpWithPassword, {});
   return (
-    <form action={action} className="auth-form">
+    <form action={action} className="auth-form" noValidate>
       <label>Your name<input className="input" name="name" autoComplete="name" defaultValue={state.name} /></label>
       <label>Email<input className="input" name="email" type="email" autoComplete="email" required defaultValue={state.email} /></label>
       <label>
@@ -44,22 +44,37 @@ function SignUpForm() {
   );
 }
 
-export function AuthForms({ googleEnabled, startWith }: { googleEnabled: boolean; startWith: "signin" | "signup" }) {
+export function AuthForms({ googleEnabled, startWith, demo = false }: {
+  googleEnabled: boolean; startWith: "signin" | "signup"; demo?: boolean;
+}) {
   const [mode, setMode] = useState(startWith);
+  const signingIn = mode === "signin";
   return (
     <>
-      <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">
-        <button role="tab" aria-selected={mode === "signin"} onClick={() => setMode("signin")}>Sign in</button>
-        <button role="tab" aria-selected={mode === "signup"} onClick={() => setMode("signup")}>Create account</button>
-      </div>
-      {mode === "signin" ? <SignInForm /> : <SignUpForm />}
+      <h2 className="auth-title">{signingIn ? "Welcome back" : "Create your account"}</h2>
+      <p className="auth-sub">
+        {signingIn ? "Sign in to see where your money went." : "It takes a few seconds. No bank login needed."}
+      </p>
       {googleEnabled && (
         <>
-          <div className="auth-or"><span>or</span></div>
           <form action={signInWithGoogle}>
             <button className="btn google-btn" type="submit"><GoogleG />Continue with Google</button>
           </form>
+          <div className="auth-or"><span>or with email</span></div>
         </>
+      )}
+      {signingIn ? <SignInForm key="in" /> : <SignUpForm key="up" />}
+      <p className="auth-switch">
+        {signingIn ? "New to MoneyMap?" : "Already have an account?"}{" "}
+        <button className="btn-link" onClick={() => setMode(signingIn ? "signup" : "signin")}>
+          {signingIn ? "Create an account" : "Sign in"}
+        </button>
+      </p>
+      {demo && (
+        <p className="auth-demo">
+          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 8h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+          This is a public demo. Create an account with any email and explore it with sample data.
+        </p>
       )}
     </>
   );
