@@ -28,6 +28,9 @@ def link_transfers(session: Session, user_id: int) -> int:
         Transaction.category_source != "manual").order_by(Transaction.date, Transaction.id)))
     if len({t.account_id for t in txns}) < 2:
         return 0
+    from .models import Account
+
+    currency = {a.id: a.currency for a in session.scalars(select(Account).where(Account.user_id == user_id))}
     incoming: dict[int, list[Transaction]] = {}
     for t in txns:
         if t.amount_pence > 0 and t.category in LIKELY_CATEGORIES:
@@ -38,6 +41,7 @@ def link_transfers(session: Session, user_id: int) -> int:
             continue
         candidates = [i for i in incoming.get(-out.amount_pence, [])
                       if i.transfer_pair_id is None and i.account_id != out.account_id
+                      and currency.get(i.account_id) == currency.get(out.account_id)
                       and abs((i.date - out.date).days) <= WINDOW_DAYS
                       and (_looks_like_transfer(out) or _looks_like_transfer(i))]
         if not candidates:

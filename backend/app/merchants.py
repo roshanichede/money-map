@@ -45,6 +45,16 @@ BRANDS: list[tuple[str, str]] = [
     (r"\bSHELL\b", "Shell"), (r"\bBP\b", "BP"), (r"\bESSO\b", "Esso"), (r"\bCHATGPT|OPENAI", "OpenAI"),
     (r"\bANTHROPIC|CLAUDE\.AI", "Anthropic"), (r"\bMICROSOFT", "Microsoft"), (r"\bADOBE", "Adobe"),
     (r"\bAUDIBLE", "Audible"), (r"\bYOUTUBE", "YouTube"), (r"\bPAYPAL", "PayPal"),
+    # India
+    (r"\bSWIGGY", "Swiggy"), (r"\bZOMATO", "Zomato"), (r"\bBLINKIT|\bGROFERS", "Blinkit"), (r"\bZEPTO", "Zepto"),
+    (r"\bBIG ?BASKET", "BigBasket"), (r"\bINSTAMART", "Instamart"), (r"\bD ?MART\b|AVENUE SUPERMARTS", "DMart"),
+    (r"\bJIOMART", "JioMart"), (r"\bFLIPKART", "Flipkart"), (r"\bMYNTRA", "Myntra"), (r"\bAJIO\b", "AJIO"),
+    (r"\bMEESHO", "Meesho"), (r"\bNYKAA", "Nykaa"), (r"\bOLACABS|\bOLA\b|ANI TECHNOLOGIES", "Ola"),
+    (r"\bRAPIDO|\bROPPEN", "Rapido"), (r"\bIRCTC", "IRCTC"), (r"\bMAKEMYTRIP|MAKE MY TRIP", "MakeMyTrip"),
+    (r"\bGOIBIBO", "Goibibo"), (r"\bINDIGO\b|INTERGLOBE", "IndiGo"), (r"\bBOOKMYSHOW|BOOK MY SHOW", "BookMyShow"),
+    (r"\bRELIANCE JIO|\bJIO\b", "Jio"), (r"\bAIRTEL|BHARTI AIRTEL", "Airtel"), (r"\bHOTSTAR", "Hotstar"),
+    (r"\bZERODHA", "Zerodha"), (r"\bGROWW", "Groww"), (r"\bPHONEPE", "PhonePe"), (r"\bPAYTM", "Paytm"),
+    (r"\bURBAN ?COMPANY|URBANCLAP", "Urban Company"), (r"\bCULT ?FIT|CUREFIT", "cult.fit"),
 ]
 _BRANDS = [(re.compile(p), name) for p, name in BRANDS]
 

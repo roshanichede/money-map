@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from .categories import CATEGORIES, INCOME_CATEGORIES, categorise, is_company, split_code
 from .models import Dismissed, MerchantRule, Rule, Transaction
+from .money import fmt_round
 
 # ---------- reading a description as payee + note ----------
 
@@ -43,7 +44,7 @@ STOPWORDS = {"OF", "FOR", "THE", "MY", "AND", "TO", "A", "AN", "IN", "ON", "AT",
              "PAY", "PAID", "SENT", "REF", "MONEY", "BACK", "DONE", "THANKS", "THANK", "YOU", "TY", "PLS", "N",
              "REVOLUT", "MONZO", "WISE", "PAYPAL", "STARLING", "TRANSFER", "VIA", "BANK"}
 NO_NOTE = "(NO NOTE)"  # a rule word meaning "payments to this person with nothing written in the note"
-PERSON_CODES = {"FPO", "FPI", "BP", "TFR", "SO", ""}
+PERSON_CODES = {"FPO", "FPI", "BP", "TFR", "SO", "", "UPI", "IMPS", "NEFT", "RTGS"}
 
 
 def words_of(description: str, txn_type: str = "") -> list[str]:
@@ -160,7 +161,7 @@ def describe(spec: Spec, category: str) -> str:
         elif spec.word:
             who += f" with “{nice(spec.word)}” in the note" if spec.payee else f" with “{nice(spec.word)}” in it"
         if spec.max_pence is not None:
-            who += f", up to £{spec.max_pence / 100:,.0f}"
+            who += f", up to {fmt_round(spec.max_pence)}"
     return f"{who} → {category}"
 
 

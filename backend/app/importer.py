@@ -113,7 +113,8 @@ def choose_account(session: Session, user_id: int, filename: str, result: ParseR
             if acct:
                 return acct, "matched to transactions already imported"
     acct = create_account(session, user_id, number=result.account_number, bank=result.bank,
-                          account_type=new_account_type or guess_type(filename, result), name=new_account_name)
+                          account_type=new_account_type or guess_type(filename, result), name=new_account_name,
+                          currency=result.currency)
     return acct, "new account"
 
 

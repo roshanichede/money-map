@@ -64,14 +64,14 @@ def find_by_overlap(session: Session, user_id: int, keys_for) -> Account | None:
 
 
 def create_account(session: Session, user_id: int, *, number: str | None, bank: str | None,
-                   account_type: str, name: str | None = None) -> Account:
+                   account_type: str, name: str | None = None, currency: str | None = None) -> Account:
     if account_type not in ACCOUNT_TYPES:
         account_type = "other"
     digits = re.sub(r"\D", "", number or "")
     last4 = digits[-4:] if digits else ""
     acct = Account(user_id=user_id, name=(name or default_name(account_type, bank, last4))[:120],
                    bank=bank or "", account_type=account_type, last4=last4,
-                   number_hash=number_hash(user_id, digits) if digits else "")
+                   number_hash=number_hash(user_id, digits) if digits else "", currency=currency or "GBP")
     session.add(acct)
     session.flush()
     return acct

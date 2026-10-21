@@ -40,6 +40,22 @@ def get_session():
         session.close()
 
 
+def _add_missing_columns(bind) -> None:
+    """Columns added after a table first existed (create_all doesn't add columns to existing tables)."""
+    from sqlalchemy import text
+
+    added = {"accounts": [("currency", "VARCHAR(3) NOT NULL DEFAULT 'GBP'")]}
+    insp = inspect(bind)
+    for table, columns in added.items():
+        if table not in insp.get_table_names():
+            continue
+        have = {c["name"] for c in insp.get_columns(table)}
+        for name, ddl in columns:
+            if name not in have:
+                with bind.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
 def init_db(bind=None):
     from . import models  # noqa: F401  (register tables)
     from .migrate import migrate_v1
@@ -51,6 +67,7 @@ def init_db(bind=None):
         migrate_v1(bind)
     else:
         Base.metadata.create_all(bind=bind)
+    _add_missing_columns(bind)
 
     from sqlalchemy.orm import Session as _Session
 

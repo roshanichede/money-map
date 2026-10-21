@@ -9,7 +9,8 @@ from .categories import OTHER_INCOME_RE, PAY_CODES, categorise, is_company, spli
 from .merchants import normalise
 from .models import AppMeta, MerchantRule, Transaction, User
 
-RULES_VERSION = 3  # bump when categorising rules change in a way existing data should pick up
+RULES_VERSION = 4  # bump when categorising rules change in a way existing data should pick up
+MIN_PAY = {"GBP": 30_000, "INR": 1_000_000, "EUR": 30_000, "USD": 30_000}  # £300 / ₹10,000 in minor units
 
 
 def detect_salary(session: Session, user_id: int) -> int:
@@ -22,6 +23,9 @@ def detect_salary(session: Session, user_id: int) -> int:
     rows = list(session.scalars(select(Transaction).where(
         Transaction.user_id == user_id, Transaction.amount_pence > 0,
         Transaction.category == "Other income", Transaction.category_source == "rule")))
+    from .models import Account
+
+    cur = {a.id: a.currency for a in session.scalars(select(Account).where(Account.user_id == user_id))}
     groups: dict[str, list[Transaction]] = defaultdict(list)
     for t in rows:
         if OTHER_INCOME_RE.search(t.description.upper()):
@@ -38,7 +42,7 @@ def detect_salary(session: Session, user_id: int) -> int:
             chosen = items
         else:
             typical = median(t.amount_pence for t in items)
-            if typical < 30_000:
+            if typical < MIN_PAY.get(cur.get(items[0].account_id, "GBP"), 30_000):
                 continue
             chosen = [t for t in items if abs(t.amount_pence - typical) <= 0.35 * typical]
             if len({(t.date.year, t.date.month) for t in chosen}) < 2:

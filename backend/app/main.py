@@ -23,6 +23,7 @@ from .importer import AccountChoiceError, import_file
 from .insights import (all_transactions, by_category, by_merchant, categorised_rate, compare_months, earnings,
                        highlights, in_month, months_overview, totals, txn_dict)
 from . import learning, teach
+from .money import CURRENCIES, set_currency
 from .models import ACCOUNT_TYPES, Account, Credential, Dismissed, MerchantRule, Rule, Transaction, Upload, User
 from .parsers import ParseError
 from .recurring import detect_recurring
@@ -46,6 +47,26 @@ app.add_middleware(
     allow_origins=os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(","),
     allow_methods=["*"], allow_headers=["*"],
 )
+
+
+def _currencies(session: Session, user: User) -> list[str]:
+    """The user's currencies, the one with most transactions first."""
+    rows = session.execute(select(Account.currency, func.count(Transaction.id))
+                           .outerjoin(Transaction, Transaction.account_id == Account.id)
+                           .where(Account.user_id == user.id).group_by(Account.currency)).all()
+    return [c for c, _ in sorted(rows, key=lambda r: -r[1])]
+
+
+def _scope(session: Session, user: User, account_id: int | None, currency: str | None):
+    """Transactions for one account, or for all accounts in one currency, and set that currency for formatting."""
+    _own_account(session, user, account_id)
+    if account_id is not None:
+        code = session.get(Account, account_id).currency
+    else:
+        mine = _currencies(session, user)
+        code = currency if currency in mine else (mine[0] if mine else "GBP")
+    set_currency(code)
+    return all_transactions(session, user.id, account_id, None if account_id is not None else code)
 
 
 def _own_account(session: Session, user: User, account_id: int | None) -> int | None:
@@ -122,6 +143,12 @@ def signin(body: SignIn, session: Session = Depends(get_session)):
     return {"email": user.email, "name": user.name}
 
 
+@app.get("/api/currencies")
+def currencies(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    """The currencies this person has accounts in, most used first, with their symbols."""
+    return [{"code": c, "symbol": CURRENCIES[c]} for c in _currencies(session, user)]
+
+
 @app.get("/api/categories")
 def categories():
     return CATEGORIES
@@ -193,7 +220,8 @@ def _account_dict(session: Session, a: Account) -> dict:
                                          .where(Transaction.account_id == a.id)).one()
     transfers = session.scalar(select(func.count()).select_from(Transaction).where(
         Transaction.account_id == a.id, Transaction.transfer_pair_id.is_not(None)))
-    return {"id": a.id, "name": a.name, "bank": a.bank, "account_type": a.account_type,
+    set_currency(a.currency)
+    return {"id": a.id, "name": a.name, "bank": a.bank, "account_type": a.account_type, "currency": a.currency,
             "type_label": TYPE_LABELS.get(a.account_type, "Account"), "last4": a.last4,
             "balance_pence": last_with_balance.balance_pence if last_with_balance else None,
             "balance_date": last_with_balance.date.isoformat() if last_with_balance else None,
@@ -210,6 +238,7 @@ def accounts(user: User = Depends(current_user), session: Session = Depends(get_
 class AccountUpdate(BaseModel):
     name: str | None = None
     account_type: str | None = None
+    currency: str | None = None
 
 
 @app.patch("/api/accounts/{account_id}")
@@ -225,6 +254,10 @@ def update_account(account_id: int, body: AccountUpdate, user: User = Depends(cu
         if body.account_type not in ACCOUNT_TYPES:
             raise HTTPException(400, f"Account type must be one of: {', '.join(ACCOUNT_TYPES)}")
         acct.account_type = body.account_type
+    if body.currency is not None:
+        if body.currency not in CURRENCIES:
+            raise HTTPException(400, f"Currency must be one of: {', '.join(CURRENCIES)}")
+        acct.currency = body.currency
     session.commit()
     return _account_dict(session, acct)
 
@@ -244,17 +277,17 @@ def delete_account(account_id: int, user: User = Depends(current_user), session:
 # ---------- insights ----------
 
 @app.get("/api/overview")
-def overview(account_id: int | None = None, user: User = Depends(current_user),
+def overview(account_id: int | None = None, currency: str | None = None, user: User = Depends(current_user),
              session: Session = Depends(get_session)):
-    txns = all_transactions(session, user.id, _own_account(session, user, account_id))
+    txns = _scope(session, user, account_id, currency)
     return {"months": months_overview(txns), "transaction_count": len(txns),
             "categorised_rate": round(categorised_rate(txns), 3)}
 
 
 @app.get("/api/summary/{month}")
-def summary(month: str, account_id: int | None = None, user: User = Depends(current_user),
+def summary(month: str, account_id: int | None = None, currency: str | None = None, user: User = Depends(current_user),
             session: Session = Depends(get_session)):
-    txns = all_transactions(session, user.id, _own_account(session, user, account_id))
+    txns = _scope(session, user, account_id, currency)
     mt = in_month(txns, month)
     if not mt:
         raise HTTPException(404, f"No transactions in {month}.")
@@ -270,16 +303,16 @@ def summary(month: str, account_id: int | None = None, user: User = Depends(curr
 
 
 @app.get("/api/earnings")
-def earnings_view(account_id: int | None = None, user: User = Depends(current_user),
+def earnings_view(account_id: int | None = None, currency: str | None = None, user: User = Depends(current_user),
                   session: Session = Depends(get_session)):
-    return earnings(all_transactions(session, user.id, _own_account(session, user, account_id)))
+    return earnings(_scope(session, user, account_id, currency))
 
 
 @app.get("/api/transactions")
 def transactions(month: str | None = None, category: str | None = None, q: str | None = None,
-                 account_id: int | None = None, user: User = Depends(current_user),
+                 account_id: int | None = None, currency: str | None = None, user: User = Depends(current_user),
                  session: Session = Depends(get_session)):
-    txns = all_transactions(session, user.id, _own_account(session, user, account_id))
+    txns = _scope(session, user, account_id, currency)
     if month:
         txns = in_month(txns, month)
     if category:
@@ -390,9 +423,9 @@ def dismiss_question(body: Dismiss, user: User = Depends(current_user), session:
 
 
 @app.get("/api/recurring")
-def recurring(account_id: int | None = None, user: User = Depends(current_user),
+def recurring(account_id: int | None = None, currency: str | None = None, user: User = Depends(current_user),
               session: Session = Depends(get_session)):
-    rows = detect_recurring(all_transactions(session, user.id, _own_account(session, user, account_id)))
+    rows = detect_recurring(_scope(session, user, account_id, currency))
     active = [r for r in rows if r["active"]]
     return {"items": rows, "active_monthly_total_pence": sum(r["monthly_cost_pence"] for r in active)}
 
@@ -400,6 +433,7 @@ def recurring(account_id: int | None = None, user: User = Depends(current_user),
 class Question(BaseModel):
     question: str
     account_id: int | None = None
+    currency: str | None = None
 
 
 @app.post("/api/chat")
@@ -407,11 +441,12 @@ def ask(body: Question, user: User = Depends(current_user), session: Session = D
     question = body.question.strip()[:500]
     if not question:
         raise HTTPException(400, "Ask a question.")
+    txns = _scope(session, user, body.account_id, body.currency)  # also sets the currency for wording
     taught = teach.proposal(question, session, user.id)  # "garba is entertainment" teaches instead of asks
     if taught:
         return {"answer": taught["answer"], "source": "rules", "guardrail": "not_used", "intent": "teach",
                 "facts": {}, "evidence": [], "proposal": taught["proposal"]}
-    return chat.ask(question, all_transactions(session, user.id, _own_account(session, user, body.account_id)))
+    return chat.ask(question, txns)
 
 
 # ---------- your data ----------

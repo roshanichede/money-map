@@ -8,7 +8,8 @@ Built because Lloyds doesn't email transaction alerts, has no personal API, and 
 
 | | |
 |---|---|
-| **Statement import** | Lloyds / Halifax / Bank of Scotland CSV natively; most other UK bank and card CSVs by header detection; text-based PDF statements by column position. |
+| **Statement import** | CSV, Excel (.xlsx/.xls, including the HTML "xls" some banks send) and text-based PDF. UK banks (Lloyds/Halifax/BoS natively, others by header detection) and Indian banks (HDFC, ICICI, SBI, Axis, Kotak layouts, with account details above the table). |
+| **UK and India, kept apart** | Each account has a currency (detected from the file, editable). Totals, transfers and salary detection never mix £ and ₹; ₹ shows Indian grouping (₹1,23,456). UPI / NEFT / IMPS / ATM / POS lines are rewritten as payee + note ("UPI/DR/4123…/PREETI M/SBIN/…/rent" → "UPI PREETI M RENT"), and Swiggy, Zomato, Blinkit, Ola, Jio and 100+ Indian merchants are known. |
 | **Several accounts** | Each file is matched to an account by its account number, by overlap with payments already imported, or by your choice. Current accounts, savings and credit cards. |
 | **Transfers don't count twice** | Money moved between your own accounts (savings top-ups, card repayments) is matched and left out of spending and income. Card purchases count as spending, not the repayment. |
 | **Duplicate-safe** | Upload overlapping exports, or a PDF and a CSV of the same month: each payment is counted once. |
@@ -58,7 +59,7 @@ Add `ANTHROPIC_API_KEY` to `.env`.
 
 ### Tests
 
-`cd backend && .venv/bin/pytest`: 78 tests covering parsers, learned rules and teaching by chat, money-in classification (salary, paid back, refunds, self-transfers), duplicates, reconciliation, accounts, transfer matching, credit cards, number masking, user isolation, the v1 database upgrade, categorisation, recurring payments and the chat guardrail.
+`cd backend && .venv/bin/pytest`: 90 tests covering parsers (UK and Indian formats), currencies, learned rules and teaching by chat, money-in classification (salary, paid back, refunds, self-transfers), duplicates, reconciliation, accounts, transfer matching, credit cards, number masking, user isolation, the v1 database upgrade, categorisation, recurring payments and the chat guardrail.
 
 ## Deploy (free): Vercel + Render + Neon
 

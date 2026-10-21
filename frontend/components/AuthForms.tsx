@@ -73,7 +73,7 @@ export function AuthForms({ googleEnabled, startWith, demo = false }: {
       {demo && (
         <p className="auth-demo">
           <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 8h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          This is a public demo. Create an account with any email and explore it with sample data.
+          Demo site: create an account with any email and explore it with sample data.
         </p>
       )}
     </>

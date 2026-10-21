@@ -13,16 +13,19 @@ import pdfplumber
 
 from .common import ParsedTxn, ParseError, ParseResult, guess_bank, parse_date, parse_money
 
-MONEY_RE = re.compile(r"^-?£?\d{1,3}(,\d{3})*\.\d{2}(CR|DR)?$|^-?£?\d+\.\d{2}(CR|DR)?$")
+# 1,234.56 (UK) and 1,23,456.78 (Indian grouping), with an optional £/₹ and a trailing CR/DR.
+MONEY_RE = re.compile(r"^-?[£₹]?\d{1,3}(,\d{2,3})*\.\d{2}(CR|DR|Cr|Dr)?$|^-?[£₹]?\d+\.\d{2}(CR|DR|Cr|Dr)?$")
 DATE_PATTERNS = [
     re.compile(r"^(\d{1,2}) ([A-Za-z]{3,9}) (\d{2,4})$"),
     re.compile(r"^(\d{1,2}/\d{1,2}/\d{2,4})$"),
     re.compile(r"^(\d{4}-\d{2}-\d{2})$"),
+    re.compile(r"^(\d{1,2}-\d{1,2}-\d{2,4})$"),
+    re.compile(r"^(\d{1,2}-[A-Za-z]{3}-\d{2,4})$"),
 ]
 OPENING_WORDS = ("balance brought forward", "opening balance", "balance b/f", "brought forward")
 CLOSING_WORDS = ("balance carried forward", "closing balance", "balance c/f", "carried forward")
 TYPE_CODE_RE = re.compile(r"^[A-Z]{2,4}$")
-ACCOUNT_NO_RE = re.compile(r"account\s*(?:number|no\.?)?\s*:?\s*(\d{8})\b", re.I)
+ACCOUNT_NO_RE = re.compile(r"account\s*(?:number|no\.?)?\s*:?\s*(\d{8}|\d{9,18})\b", re.I)
 
 
 @dataclass
@@ -52,14 +55,14 @@ def _lines(page) -> list[list[dict]]:
 
 def _phrase_x1(line: list[dict], *phrases: str) -> float | None:
     """Right edge of the first header phrase found (e.g. 'Money In')."""
-    texts = [w["text"].lower().strip("()£:") for w in line]
+    texts = [w["text"].lower().strip("()£₹:.") for w in line]
     for phrase in phrases:
         parts = phrase.split()
         for i in range(len(texts) - len(parts) + 1):
             if texts[i : i + len(parts)] == parts:
                 end = line[i + len(parts) - 1]
                 # include a trailing "(£)" token if present
-                if i + len(parts) < len(line) and line[i + len(parts)]["text"].strip() in ("(£)", "£"):
+                if i + len(parts) < len(line) and line[i + len(parts)]["text"].strip() in ("(£)", "£", "(₹)", "(INR)", "(inr)"):
                     end = line[i + len(parts)]
                 return end["x1"]
     return None
@@ -69,13 +72,16 @@ def _header_columns(line: list[dict]) -> Columns | None:
     joined = " ".join(w["text"].lower() for w in line)
     if "balance" not in joined or "date" not in joined:
         return None
-    in_x1 = _phrase_x1(line, "money in", "paid in", "credit", "credits", "in")
-    out_x1 = _phrase_x1(line, "money out", "paid out", "debit", "debits", "out")
+    in_x1 = _phrase_x1(line, "money in", "paid in", "deposit amt", "deposit amount", "deposits", "deposit",
+                       "credit", "credits", "in")
+    out_x1 = _phrase_x1(line, "money out", "paid out", "withdrawal amt", "withdrawal amount", "withdrawals",
+                        "withdrawal", "debit", "debits", "out")
     amount_x1 = _phrase_x1(line, "amount")
     balance_x1 = _phrase_x1(line, "balance")
     if balance_x1 is None or (in_x1 is None and out_x1 is None and amount_x1 is None):
         return None
-    desc = next((w for w in line if w["text"].lower() in ("description", "details", "transaction")), None)
+    desc = next((w for w in line if w["text"].lower().strip(".") in ("description", "details", "transaction",
+                                                                       "narration", "particulars", "remarks")), None)
     type_w = next((w for w in line if w["text"].lower() == "type"), None)
     money_x1s = [x for x in (in_x1, out_x1, amount_x1) if x is not None]
     return Columns(
@@ -214,5 +220,9 @@ def parse_pdf(content: bytes) -> ParseResult:
         elif prev_bal is not None:
             prev_bal += txn.amount_pence
 
+    lower = first_page.lower()
+    currency = "INR" if ("₹" in first_page or re.search(r"\binr\b|\brs\.", lower)) else (
+        "GBP" if "£" in first_page else None)
     return ParseResult("pdf", txns, opening_balance_pence=opening, warnings=warnings or None,
-                       account_number=account_match.group(1) if account_match else None, bank=bank)
+                       account_number=account_match.group(1) if account_match else None, bank=bank,
+                       currency=currency)

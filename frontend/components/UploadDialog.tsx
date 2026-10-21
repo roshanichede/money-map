@@ -50,9 +50,9 @@ function DropZone({ onFiles, busy }: { onFiles: (f: File[]) => void; busy: boole
       onDrop={(e) => { e.preventDefault(); setOver(false); onFiles(Array.from(e.dataTransfer.files)); }}
     >
       <IconUpload size={22} />
-      <strong>Drop CSV exports or PDF statements</strong>
-      <span className="quiet small">Lloyds, Halifax and Bank of Scotland are read natively. Most other UK banks&apos; CSVs work too.</span>
-      <input ref={ref} type="file" accept=".csv,.pdf,text/csv,application/pdf" multiple hidden
+      <strong>Drop your bank statements</strong>
+      <span className="quiet small">CSV, Excel or PDF, from UK banks (Lloyds, Barclays, HSBC, Monzo…) and Indian banks (HDFC, ICICI, SBI, Axis, Kotak…).</span>
+      <input ref={ref} type="file" accept=".csv,.txt,.pdf,.xls,.xlsx,text/csv,application/pdf" multiple hidden
              onChange={(e) => { onFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       <button type="button" className="btn" disabled={busy} onClick={() => ref.current?.click()}>
         {busy ? "Reading…" : "Choose files"}
@@ -64,8 +64,7 @@ function DropZone({ onFiles, busy }: { onFiles: (f: File[]) => void; busy: boole
 export function DemoNotice() {
   return (
     <p className="demo-notice" role="note">
-      <b>This is a public demo.</b> Try it with the sample data. Please don&apos;t upload real bank statements here:
-      to use MoneyMap with your own money, run it on your computer (see the README on GitHub).
+      Demo site: the quickest way in is the sample data.
     </p>
   );
 }
@@ -193,8 +192,8 @@ export function Welcome({ onImported, demo = false }: { onImported: () => void; 
         {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
       </div>
       <div className="how">
-        <div><b>Getting a Lloyds CSV</b>On a computer, open the account, choose Statement options, then Export transactions. Each export holds up to 150 rows.</div>
-        <div><b>Several accounts</b>Upload each one. Transfers and card repayments between them are matched so nothing counts twice.</div>
+        <div><b>Getting your statement</b>In online banking, open the account and look for Download, Export or Statements. Choose CSV or Excel if offered; PDF works too.</div>
+        <div><b>Several accounts, two currencies</b>Upload each one. Transfers between them are matched so nothing counts twice, and pounds and rupees are kept apart.</div>
         <div><b>Your files aren&apos;t kept</b>Statements are read, then thrown away. Only the transactions are saved, and you can delete them any time.</div>
       </div>
     </div>

@@ -28,7 +28,7 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
         <div className="auth-brand"><Mark />MoneyMap</div>
         <div className="auth-story-body">
           <h1>Your bank statement, finally readable.</h1>
-          <p>Upload the CSV or PDF you already have. MoneyMap sorts every payment, spots your pay and finds your bills.</p>
+          <p>Upload the statements you already have, from UK or Indian banks. MoneyMap sorts every payment, spots your pay and finds your bills.</p>
           <ol className="sorter" aria-label="Example: statement lines sorted into categories">
             {EXAMPLES.map((e) => (
               <li key={e.raw}>

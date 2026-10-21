@@ -40,7 +40,7 @@ CATEGORY_WORDS: dict[str, list[str]] = {
 for cat in CATEGORIES:
     CATEGORY_WORDS.setdefault(cat.lower(), [cat])
 
-MONEY_RE = re.compile(r"£\s?\d[\d,]*(?:\.\d{1,2})?")
+MONEY_RE = re.compile(r"[£₹€$]\s?\d[\d,]*(?:\.\d{1,2})?")
 PCT_RE = re.compile(r"\d+(?:\.\d+)?\s?%")
 
 
@@ -312,7 +312,7 @@ def _allowed_figures(facts: dict) -> tuple[set[str], set[str]]:
         whole = v.split(".")[0]
         money.add(whole)  # "£84" for "£84.20" (rounding down) is allowed
         try:
-            money.add(f"£{round(float(v[1:]))}")
+            money.add(f"{v[0]}{round(float(v[1:]))}")
         except ValueError:
             pass
     for p in PCT_RE.findall(text):

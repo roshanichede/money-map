@@ -9,6 +9,8 @@ import { CategoryIcon } from "./CategoryIcon";
 type Props = {
   month: string;
   accountId: number | null;
+  /** With "all accounts", only accounts in this currency. */
+  currency?: string | null;
   accounts: Account[];
   category: string | null;
   onCategory: (category: string | null) => void;
@@ -31,7 +33,8 @@ export function Transactions(props: Props) {
   const [error, setError] = useState<string | null>(null);
   const [teach, setTeach] = useState<{ txn: Txn; category: string; options: ScopeOption[] } | null>(null);
   const [saving, setSaving] = useState(false);
-  const filterKey = `${month}|${accountId}|${category}|${q}`;
+  const currency = props.currency ?? null;
+  const filterKey = `${month}|${accountId}|${currency}|${category}|${q}`;
   const [page, setPage] = useState({ key: filterKey, shown: PAGE });
   const shown = limit ?? (page.key === filterKey ? page.shown : PAGE);
   const names = new Map(accounts.map((a) => [a.id, a.name]));
@@ -39,12 +42,12 @@ export function Transactions(props: Props) {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      api.transactions({ month, category: category ?? undefined, q: q.trim() || undefined, accountId })
+      api.transactions({ month, category: category ?? undefined, q: q.trim() || undefined, accountId, currency })
         .then((r) => { setRows(r); setError(null); })
         .catch((e) => setError(e.message));
     }, 120);
     return () => clearTimeout(t);
-  }, [month, accountId, category, q, refreshKey]);
+  }, [month, accountId, currency, category, q, refreshKey]);
 
   async function recategorise(t: Txn, next: string) {
     try {

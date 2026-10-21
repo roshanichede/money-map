@@ -5,6 +5,8 @@ pdfplumber>=0.11
 python-multipart>=0.0.9
 anthropic>=0.40
 psycopg[binary]>=3.2  # Postgres, when DATABASE_URL points at one
+openpyxl>=3.1  # Excel (.xlsx) statements
+xlrd>=2.0  # old Excel (.xls) statements, common from Indian banks
 # dev / tests
 pytest>=8
 httpx>=0.27

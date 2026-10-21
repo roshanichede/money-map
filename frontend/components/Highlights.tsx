@@ -1,6 +1,7 @@
 "use client";
 
 import type { Highlight } from "@/lib/api";
+import { currencySymbol } from "@/lib/format";
 
 const MARK: Record<Highlight["kind"], string> = {
   top: "●",
@@ -29,7 +30,7 @@ export function Highlights({ items, onCategory }: Props) {
           {shown.map((h, i) => {
             const body = (
               <>
-                <span className="hl-mark" aria-hidden="true">{MARK[h.kind]}</span>
+                <span className="hl-mark" aria-hidden="true">{h.kind === "salary" ? currencySymbol() : MARK[h.kind]}</span>
                 <span>{h.text}</span>
               </>
             );

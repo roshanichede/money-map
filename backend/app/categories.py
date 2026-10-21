@@ -24,7 +24,7 @@ NEUTRAL = {"Transfers", "From people"}
 
 # Codes Lloyds and others print at the start of a description when there's no separate type column.
 STATEMENT_CODE_RE = re.compile(
-    r"^(DD|SO|DEB|FPI|FPO|BGC|TFR|CPT|BP|CHQ|PAY|DEP|COR|FEE|INT|CSH|BACS|DR|CR)\s+(?=\S)")
+    r"^(DD|SO|DEB|FPI|FPO|BGC|TFR|CPT|BP|CHQ|PAY|DEP|COR|FEE|INT|CSH|BACS|DR|CR|UPI|NEFT|IMPS|RTGS|NACH|POS|ATM)\s+(?=\S)")
 
 
 def split_code(description: str, txn_type: str = "") -> tuple[str, str]:
@@ -42,9 +42,11 @@ PAY_CODES = {"BGC", "BACS"}  # how employers' payroll arrives in UK statements
 SALARY_RE = re.compile(r"\bSALARY\b|\bSAL\b|PAYROLL|PAY ROLL|\bWAGES?\b|\bPAYE\b|NET PAY")
 OTHER_INCOME_RE = re.compile(
     r"INTEREST|DIVIDEND|\bHMRC\b|TAX REFUND|CASHBACK|CASH BACK|\bINVOICE\b|\bINV\b|BONUS|\bDWP\b|"
-    r"STUDENT FINANCE|\bSLC\b|BURSARY|SCHOLARSHIP|STIPEND|PENSION|CHILD BENEFIT|UNIVERSAL CREDIT|COMMISSION")
+    r"STUDENT FINANCE|\bSLC\b|BURSARY|SCHOLARSHIP|STIPEND|PENSION|CHILD BENEFIT|UNIVERSAL CREDIT|COMMISSION|"
+    r"\bINT\.?\s?PD\b|\bINT\.?\s?CR|CREDIT INTEREST|INTEREST CREDIT|SB INTEREST|DIVIDEND|INCOME TAX REFUND|\bITR\b|"
+    r"CASHBACK")
 COMPANY_RE = re.compile(
-    r"\bLTD\b|LIMITED|\bLIM\b|\bLIMI|\bLTD\.|\bPLC\b|\bLLP\b|\bINC\b|\bCORP|\bGROUP\b|HOLDINGS|SERVICES|SOLUTIONS|"
+    r"\bLTD\b|LIMITED|\bLIM\b|\bLIMI|\bLTD\.|\bPVT\b|PRIVATE LTD|\bLLP\b|\bTECHNOLOGIES\b|\bPLC\b|\bLLP\b|\bINC\b|\bCORP|\bGROUP\b|HOLDINGS|SERVICES|SOLUTIONS|"
     r"TECHNOLOG|\bTECH\b|CONSULT|AGENCY|UNIVERSITY|COUNCIL|\bTRUST\b|\bBANK\b|PAYPAL|STRIPE|\bWISE\b|"
     r"AMAZON|\bHMRC\b|\bDWP\b|\bNHS\b|COLLEGE|SCHOOL|ACADEMY|CLINIC|STUDIO|MEDIA|DIGITAL|SYSTEMS|PARTNERS|"
     r"\bUK\b|\bCO\b|\bCIC\b|FOUNDATION|ASSOCIATION|INTERNATIONAL|GLOBAL|VENTURES|CAPITAL|PAYMENTS")
@@ -74,33 +76,60 @@ def is_company(text: str) -> bool:
 
 KEYWORDS: dict[str, list[str]] = {
     "Groceries": ["TESCO", "SAINSBURY", "ASDA", "ALDI", "LIDL", "MORRISONS", "WAITROSE", "CO-OP", "M&S",
-                  "OCADO", "ICELAND", "SPAR", "BUDGENS", "FARMFOODS", "WHOLE FOODS", "COSTCO"],
-    "Takeaways": ["DELIVEROO", "UBER EATS", "JUST EAT", "DOMINOS", "PAPA JOHNS", "PIZZA HUT DEL"],
+                  "OCADO", "ICELAND", "SPAR", "BUDGENS", "FARMFOODS", "WHOLE FOODS", "COSTCO",
+                  # India
+                  "BLINKIT", "GROFERS", "ZEPTO", "BIGBASKET", "BIG BASKET", "INSTAMART", "DMART", "D MART",
+                  "AVENUE SUPERMARTS", "JIOMART", "RELIANCE FRESH", "RELIANCE SMART", "MORE RETAIL", "NATURES BASKET",
+                  "SPENCERS", "STAR BAZAAR", "COUNTRY DELIGHT", "MILKBASKET", "KIRANA", "SUPERMARKET", "GROCERY"],
+    "Takeaways": ["DELIVEROO", "UBER EATS", "JUST EAT", "DOMINOS", "PAPA JOHNS", "PIZZA HUT DEL",
+                  "SWIGGY", "ZOMATO", "EATSURE", "FAASOS", "BOX8", "MAGICPIN"],
     "Eating out": ["PRET", "GREGGS", "COSTA", "STARBUCKS", "CAFFE NERO", "MCDONALD", "NANDO", "KFC",
                    "BURGER KING", "WAGAMAMA", "LEON", "SUBWAY", "PIZZA EXPRESS", "WETHERSPOON",
                    "RESTAURANT", "CAFE", "COFFEE", "BAR ", " PUB", "KITCHEN", "GRILL", "TACO", "SUSHI"],
     "Transport": ["TFL", "TRAINLINE", "UBER", "BOLT", "NATIONAL RAIL", "AVANTI", "LNER", "EAST MIDLANDS",
                   "STAGECOACH", "ARRIVA", "NATIONAL EXPRESS", "MEGABUS", "SHELL", "BP", "ESSO", "PARKING",
-                  "RINGGO", "PAYBYPHONE", "DVLA", "LIME", "TRAINS"],
+                  "RINGGO", "PAYBYPHONE", "DVLA", "LIME", "TRAINS",
+                  "OLA", "OLACABS", "ANI TECHNOLOGIES", "RAPIDO", "ROPPEN", "NAMMA YATRI", "BLU SMART", "BLUSMART",
+                  "FASTAG", "METRO", "BEST BUS", "REDBUS", "INDIAN OIL", "IOCL", "HPCL", "BPCL", "PETROL", "FUEL",
+                  "YULU", "UBER INDIA"],
     "Subscriptions": ["NETFLIX", "SPOTIFY", "DISNEY+", "AMAZON PRIME", "PRIME VIDEO", "APPLE", "YOUTUBE",
                       "AUDIBLE", "OPENAI", "ANTHROPIC", "ADOBE", "MICROSOFT", "GOOGLE", "NOW TV", "PATREON",
-                      "ICLOUD", "DROPBOX", "NOTION", "CANVA", "LINKEDIN", "DUOLINGO"],
+                      "ICLOUD", "DROPBOX", "NOTION", "CANVA", "LINKEDIN", "DUOLINGO",
+                      "HOTSTAR", "JIOHOTSTAR", "JIOCINEMA", "SONYLIV", "ZEE5", "GAANA", "JIOSAAVN", "WYNK"],
     "Bills & utilities": ["VODAFONE", "EE", "O2", "THREE", "GIFFGAFF", "BT", "VIRGIN MEDIA", "SKY",
                           "BRITISH GAS", "OCTOPUS", "EDF", "E.ON", "OVO", "THAMES WATER", "SEVERN TRENT",
-                          "COUNCIL TAX", "TV LICENCE", "WATER", "ENERGY", "INSURANCE", "BROADBAND"],
+                          "COUNCIL TAX", "TV LICENCE", "WATER", "ENERGY", "INSURANCE", "BROADBAND",
+                          "JIO", "AIRTEL", "BHARTI", "VODAFONE IDEA", "BSNL", "ACT FIBERNET", "HATHWAY", "TATA PLAY",
+                          "DTH", "RECHARGE", "ELECTRICITY", "BESCOM", "MSEDCL", "MAHADISCOM", "TATA POWER",
+                          "ADANI ELECTRICITY", "BSES", "TORRENT POWER", "MAHANAGAR GAS", "INDANE", "BHARAT GAS",
+                          "HP GAS", "GAS CYLINDER", "LIC", "LIFE INSURANCE", "ICICIPRULIFE", "HDFC LIFE", "SBI LIFE",
+                          "POLICYBAZAAR", "MAINTENANCE", "SOCIETY", "BILLDESK", "BILL PAY"],
     "Rent & housing": ["RENT", "LETTING", "LETTINGS", "ESTATE AGENT", "MORTGAGE", "LANDLORD", "OPENRENT"],
     "Shopping": ["AMAZON", "ARGOS", "PRIMARK", "ZARA", "H&M", "ASOS", "IKEA", "EBAY", "VINTED", "JOHN LEWIS",
-                 "NEXT", "UNIQLO", "TK MAXX", "CURRYS", "SHEIN", "TEMU", "ETSY", "WHSMITH", "WILKO", "B&M"],
+                 "NEXT", "UNIQLO", "TK MAXX", "CURRYS", "SHEIN", "TEMU", "ETSY", "WHSMITH", "WILKO", "B&M",
+                 "FLIPKART", "MYNTRA", "AJIO", "MEESHO", "NYKAA", "TATA CLIQ", "CROMA", "RELIANCE DIGITAL",
+                 "LIFESTYLE", "WESTSIDE", "PANTALOONS", "DECATHLON", "LENSKART", "FIRSTCRY", "PEPPERFRY",
+                 "URBAN LADDER", "SNAPDEAL", "TRENDS"],
     "Entertainment": ["CINEMA", "ODEON", "VUE", "CINEWORLD", "TICKETMASTER", "STEAM", "PLAYSTATION",
-                      "XBOX", "NINTENDO", "EVENTBRITE", "BOWLING", "THEATRE"],
+                      "XBOX", "NINTENDO", "EVENTBRITE", "BOWLING", "THEATRE",
+                      "BOOKMYSHOW", "BOOK MY SHOW", "PVR", "INOX", "CINEPOLIS", "DISTRICT", "PAYTM INSIDER",
+                      "SKILLBOX"],
     "Health & fitness": ["PUREGYM", "THE GYM GROUP", "GYM", "BOOTS", "SUPERDRUG", "PHARMACY", "DENTAL",
-                         "OPTICIAN", "SPECSAVERS", "NHS", "FITNESS", "YOGA"],
-    "Personal care": ["SALON", "BARBER", "HAIR", "BEAUTY", "NAILS", "SPA"],
+                         "OPTICIAN", "SPECSAVERS", "NHS", "FITNESS", "YOGA",
+                         "CULT FIT", "CULTFIT", "CUREFIT", "APOLLO", "PHARMEASY", "NETMEDS", "1MG", "TATA 1MG",
+                         "MEDPLUS", "PRACTO", "HOSPITAL", "CLINIC", "MEDICAL", "CHEMIST"],
+    "Personal care": ["SALON", "BARBER", "HAIR", "BEAUTY", "NAILS", "SPA", "URBAN COMPANY", "URBANCLAP",
+                      "PARLOUR", "PARLOR"],
     "Travel": ["RYANAIR", "EASYJET", "BRITISH AIRWAYS", "AIRBNB", "BOOKING.COM", "HOTEL", "EXPEDIA",
-               "JET2", "WIZZ", "TRAVELODGE", "PREMIER INN", "HOSTEL", "AIRLINE", "AIRPORT"],
-    "Education": ["UNIVERSITY", "UNI OF", "COURSERA", "UDEMY", "TUITION", "STUDENT"],
+               "JET2", "WIZZ", "TRAVELODGE", "PREMIER INN", "HOSTEL", "AIRLINE", "AIRPORT",
+               "MAKEMYTRIP", "MAKE MY TRIP", "GOIBIBO", "CLEARTRIP", "IXIGO", "YATRA", "EASEMYTRIP", "INDIGO",
+               "INTERGLOBE", "AIR INDIA", "VISTARA", "AKASA", "SPICEJET", "IRCTC", "OYO", "TAJ", "AGODA"],
+    "Education": ["UNIVERSITY", "UNI OF", "COURSERA", "UDEMY", "TUITION", "STUDENT", "BYJU", "UNACADEMY",
+                  "UPGRAD", "SCALER", "SIMPLILEARN", "COLLEGE", "SCHOOL FEE", "EXAM FEE"],
     "Gifts & charity": ["DONATION", "CHARITY", "JUSTGIVING", "OXFAM", "RED CROSS", "MOONPIG", "FUNKY PIGEON"],
-    "Fees & charges": ["FEE", "CHARGE", "INTEREST", "OVERDRAFT", "PENALTY", "NON-STERLING"],
+    "Fees & charges": ["FEE", "CHARGE", "INTEREST", "OVERDRAFT", "PENALTY", "NON-STERLING", "CHRG", "CHGS",
+                       "SMS ALERT", "SMS CHARGES", "GST", "MIN BAL", "MINIMUM BALANCE", "AMC", "ANNUAL FEE",
+                       "DEBIT CARD FEE", "CONVENIENCE FEE"],
 }
 _KEYWORD_RE = {
     cat: re.compile("|".join(r"(?<![A-Z])" + re.escape(k.strip()) + r"(?![A-Z])" for k in words))
@@ -112,15 +141,18 @@ _ORDER = ["Takeaways", "Subscriptions", "Groceries", "Eating out", "Transport", 
 
 # Lloyds transaction type codes
 TYPE_TRANSFER = {"TFR"}
-TYPE_CASH = {"CPT", "CSH"}
+TYPE_CASH = {"CPT", "CSH", "ATM"}
 TYPE_FEE = {"FEE", "INT"}
-TYPE_DIRECT = {"DD", "SO"}
+TYPE_DIRECT = {"DD", "SO", "NACH"}
 TYPE_INCOMING = {"BGC", "FPI", "CR", "DEP"}
 
 
 CARD_REPAYMENT_RE = re.compile(
     r"CREDIT CARD|\bCC PAYMENT|BARCLAYCARD|AMERICAN EXPRESS|\bAMEX\b|CAPITAL ONE|MBNA|VANQUIS|AQUA CARD|"
     r"LLOYDS BANK PLC CARD|JOHN LEWIS FIN")
+INVESTMENT_RE = re.compile(r"ZERODHA|GROWW|UPSTOX|\bKUVERA\b|\bCOIN BY\b|\bSIP\b|MUTUAL FUND|\bICCL\b|"
+                           r"INDIAN CLEARING|NSE CLEARING|\bBSE LTD\b|\bPPF\b|\bNPS\b|FIXED DEPOSIT|"
+                           r"RECURRING DEPOSIT|\bRD INSTALLMENT|VANGUARD|TRADING 212|FREETRADE|HARGREAVES|\bISA\b")
 CARD_PAYMENT_RECEIVED_RE = re.compile(r"PAYMENT RECEIVED|PAYMENT - THANK|PAYMENT THANK YOU|DIRECT DEBIT PAYMENT")
 
 
@@ -131,7 +163,8 @@ def categorise(description: str, merchant_key: str, txn_type: str, amount_pence:
         return "Transfers"  # a repayment arriving on a credit card
     if amount_pence < 0 and CARD_REPAYMENT_RE.search(text):
         return "Card repayments"  # counted as spending until the card itself is uploaded
-    if code in TYPE_TRANSFER or re.search(r"\bTRANSFER\b|\bSAVINGS\b|\bTO A/C\b|\bFROM A/C\b|\bPOT\b", text):
+    if code in TYPE_TRANSFER or re.search(r"\bTRANSFER\b|\bSAVINGS\b|\bTO A/C\b|\bFROM A/C\b|\bPOT\b", text) \
+            or INVESTMENT_RE.search(text):  # money moved into your own savings or investments: not spending
         return "Transfers"
     if code in TYPE_CASH or re.search(r"\bCASH\b|\bATM\b|\bLINK\b", text):
         return "Cash" if amount_pence < 0 else "Other income"

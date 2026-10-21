@@ -37,6 +37,7 @@ class Account(Base):
     account_type: Mapped[str] = mapped_column(String(20), default="current")
     last4: Mapped[str] = mapped_column(String(4), default="")
     number_hash: Mapped[str] = mapped_column(String(64), default="", index=True)
+    currency: Mapped[str] = mapped_column(String(3), default="GBP")  # GBP, INR... totals never mix currencies
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 

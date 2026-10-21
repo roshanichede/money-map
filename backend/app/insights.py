@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 import re
 
+from .money import fmt_round
+
 from .categories import INCOME_CATEGORIES, NEUTRAL, PAID_BACK_NOTES, SALARY_RE, money_in_kind
 from .models import Transaction
 
@@ -15,10 +17,16 @@ def month_key(d: date) -> str:
     return f"{d.year:04d}-{d.month:02d}"
 
 
-def all_transactions(session: Session, user_id: int, account_id: int | None = None) -> list[Transaction]:
+def all_transactions(session: Session, user_id: int, account_id: int | None = None,
+                     currency: str | None = None) -> list[Transaction]:
+    """One account, or all accounts in one currency (pounds and rupees are never added together)."""
+    from .models import Account
+
     q = select(Transaction).where(Transaction.user_id == user_id)
     if account_id is not None:
         q = q.where(Transaction.account_id == account_id)
+    elif currency is not None:
+        q = q.join(Account, Account.id == Transaction.account_id).where(Account.currency == currency)
     return list(session.scalars(q.order_by(Transaction.date, Transaction.id)))
 
 
@@ -189,7 +197,7 @@ def payer_name(merchant: str) -> str:
 
 
 def _pounds(pence: int) -> str:
-    return f"£{round(abs(pence) / 100):,}"
+    return fmt_round(pence)
 
 
 def _ordinal(n: int) -> str:

@@ -1,15 +1,34 @@
-const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
-const gbpRound = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
+/** Money is shown in the currency of the accounts on screen (set by the dashboard): £ or ₹, never mixed. */
+export const SYMBOLS: Record<string, string> = { GBP: "£", INR: "₹", EUR: "€", USD: "$" };
+let current = "GBP";
+let exact = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
+let whole = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 
-export const money = (pence: number) => gbp.format(pence / 100);
-export const moneyRound = (pence: number) => gbpRound.format(Math.round(pence / 100));
+export function setCurrency(code: string) {
+  if (code === current || !SYMBOLS[code]) return;
+  current = code;
+  const locale = code === "INR" ? "en-IN" : "en-GB"; // en-IN groups as 1,23,456
+  exact = new Intl.NumberFormat(locale, { style: "currency", currency: code });
+  whole = new Intl.NumberFormat(locale, { style: "currency", currency: code, maximumFractionDigits: 0 });
+}
+export const currencySymbol = () => SYMBOLS[current];
+
+export const money = (pence: number) => exact.format(pence / 100);
+export const moneyRound = (pence: number) => whole.format(Math.round(pence / 100));
 export const signedMoney = (pence: number) => (pence > 0 ? "+" : pence < 0 ? "−" : "") + money(Math.abs(pence));
 export const signedRound = (pence: number) =>
   (pence > 0 ? "+" : pence < 0 ? "−" : "") + moneyRound(Math.abs(pence));
 
+/** Axis labels: £1.2K, ₹1.5L (lakh), ₹2Cr (crore). */
 export const compactPounds = (pence: number) => {
-  const pounds = pence / 100;
-  return Math.abs(pounds) >= 1000 ? `£${(pounds / 1000).toFixed(pounds % 1000 === 0 ? 0 : 1)}K` : `£${Math.round(pounds)}`;
+  const units = pence / 100;
+  const sym = SYMBOLS[current];
+  const fmt = (v: number, suffix: string) => `${sym}${Number.isInteger(v) ? v : v.toFixed(1)}${suffix}`;
+  if (current === "INR") {
+    if (Math.abs(units) >= 1e7) return fmt(units / 1e7, "Cr");
+    if (Math.abs(units) >= 1e5) return fmt(units / 1e5, "L");
+  }
+  return Math.abs(units) >= 1000 ? fmt(units / 1000, "K") : `${sym}${Math.round(units)}`;
 };
 
 export function monthLabel(month: string, style: "long" | "short" = "long") {

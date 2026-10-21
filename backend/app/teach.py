@@ -43,7 +43,8 @@ _TEACHING = re.compile(r"\b(is|are|was|were|means?|=|should be|count(s)? as|goes
 _LINKER = re.compile(r"\b(?:is|are|=|means?|should be|counts? as|goes? (?:to|in|under)|as)\b\s+"
                      r"(?:(?:for|basically|mostly|always|just|actually|really|my|the|a|an)\s+)*$")
 _AMOUNT = re.compile(r"(?:up ?to|upto|under|below|less than|max(?:imum)?|within|at most|<=?|till|until)\s*"
-                     r"£?\s*(\d+(?:\.\d{1,2})?)\s*(?:pounds?|quid|gbp|£)?|£\s*(\d+(?:\.\d{1,2})?)\s*or less", re.I)
+                     r"[£₹]?\s*(?:rs\.?\s*)?(\d[\d,]*(?:\.\d{1,2})?)\s*(?:pounds?|quid|gbp|£|rupees?|rs|inr|₹)?|"
+                     r"[£₹]\s*(\d[\d,]*(?:\.\d{1,2})?)\s*or less", re.I)
 ENGLISH = STOPWORDS | {"I", "ME", "IT", "THIS", "THAT", "THESE", "IS", "ARE", "WAS", "WHEN", "WITH", "BASICALLY",
                        "ALWAYS", "MEANS", "MEAN", "PAYMENTS", "RANGES", "RANGE", "UPTO", "UP", "POUNDS", "ITS",
                        "PARTICULAR", "ACCOUNT", "REPEATED", "SOMETHING", "ALL", "EVERY", "ONE", "SOME", "HER",
@@ -60,7 +61,7 @@ def _amount(message: str) -> int | None:
     m = _AMOUNT.search(message)
     if not m:
         return None
-    return round(float(m.group(1) or m.group(2)) * 100)
+    return round(float((m.group(1) or m.group(2)).replace(",", "")) * 100)
 
 
 def _grams(text: str) -> list[str]:

@@ -23,11 +23,16 @@ class ParseResult:
     warnings: list[str] | None = None
     account_number: str | None = None  # as found in the file; never stored in full
     bank: str | None = None
+    currency: str | None = None  # "GBP" or "INR"; None when the file doesn't say
 
 
 BANK_NAMES = ("Lloyds", "Halifax", "Bank of Scotland", "Barclays", "HSBC", "NatWest", "Santander", "Nationwide",
               "Monzo", "Starling", "Revolut", "TSB", "Co-operative Bank", "First Direct", "Metro Bank",
-              "American Express", "Barclaycard", "Capital One")
+              "American Express", "Barclaycard", "Capital One",
+              "HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank", "Kotak Mahindra Bank", "Kotak",
+              "Yes Bank", "IDFC First", "Bank of Baroda", "Punjab National Bank", "Canara Bank", "Union Bank of India",
+              "IndusInd", "Federal Bank", "AU Small Finance Bank", "Paytm Payments Bank")
+INDIAN_BANKS = set(BANK_NAMES[BANK_NAMES.index("HDFC Bank"):])
 
 
 def guess_bank(text: str) -> str | None:
@@ -41,7 +46,8 @@ class ParseError(ValueError):
 
 _DATE_FORMATS = (
     "%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d", "%d-%m-%Y", "%d %b %Y", "%d %b %y",
-    "%d %B %Y", "%d-%b-%Y", "%d-%b-%y", "%d.%m.%Y", "%Y/%m/%d",
+    "%d %B %Y", "%d-%b-%Y", "%d-%b-%y", "%d.%m.%Y", "%Y/%m/%d", "%d/%b/%Y", "%d %b, %Y", "%b %d %Y",
+    "%d-%m-%y", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d-%m-%Y %H:%M:%S",
 )
 
 
@@ -63,7 +69,8 @@ def parse_money(text: str | None) -> int | None:
     """'1,234.56' -> 123456 pence. Handles £, spaces, trailing CR/DR, (brackets) and minus."""
     if text is None:
         return None
-    raw = str(text).strip().replace("£", "").replace(",", "").replace(" ", "")
+    raw = str(text).strip().replace("£", "").replace("₹", "").replace(",", "").replace(" ", "").replace("\xa0", "")
+    raw = re.sub(r"^(?:RS\.?|INR|GBP)", "", raw, flags=re.I)
     if raw in ("", "-", "—"):
         return None
     negative = False

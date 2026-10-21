@@ -20,6 +20,7 @@ type Props = {
   onClose: () => void;
   suggestions: string[];
   accountId: number | null;
+  currency?: string;
   scopeLabel: string;
   /** Called after a rule taught in the chat moved payments, so the dashboard refreshes. */
   onTaught: () => void;
@@ -52,7 +53,7 @@ function ProposalCard({ p, saved, onSave }: { p: Proposal; saved?: string; onSav
 }
 
 /** The conversation survives closing the drawer; it resets when the data or the account filter changes (via key). */
-export function ChatDrawer({ open, onClose, suggestions, accountId, scopeLabel, onTaught }: Props) {
+export function ChatDrawer({ open, onClose, suggestions, accountId, currency, scopeLabel, onTaught }: Props) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -77,7 +78,7 @@ export function ChatDrawer({ open, onClose, suggestions, accountId, scopeLabel, 
     setBusy(true);
     setTurns((t) => [...t, { q }]);
     try {
-      const reply = await api.ask(q, accountId);
+      const reply = await api.ask(q, accountId, currency);
       setTurns((t) => t.map((turn, i) => (i === t.length - 1 ? { ...turn, reply } : turn)));
     } catch (e) {
       setTurns((t) => t.map((turn, i) => (i === t.length - 1 ? { ...turn, error: (e as Error).message } : turn)));

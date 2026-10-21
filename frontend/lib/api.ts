@@ -23,6 +23,7 @@ export type Account = {
   account_type: AccountType;
   type_label: string;
   last4: string;
+  currency: string;
   balance_pence: number | null;
   balance_date: string | null;
   transaction_count: number;
@@ -226,20 +227,23 @@ const qs = (params: Record<string, string | number | null | undefined>) => {
 
 export const api = {
   me: () => request<{ email: string | null; name: string; login_mode: boolean }>("/api/me"),
-  overview: (accountId?: number | null) => request<Overview>(`/api/overview${qs({ account_id: accountId })}`),
-  summary: (month: string, accountId?: number | null) =>
-    request<Summary>(`/api/summary/${month}${qs({ account_id: accountId })}`),
-  recurring: (accountId?: number | null) =>
-    request<{ items: Recurring[]; active_monthly_total_pence: number }>(`/api/recurring${qs({ account_id: accountId })}`),
-  earnings: (accountId?: number | null) => request<Earnings>(`/api/earnings${qs({ account_id: accountId })}`),
+  currencies: () => request<{ code: string; symbol: string }[]>("/api/currencies"),
+  overview: (accountId?: number | null, currency?: string | null) =>
+    request<Overview>(`/api/overview${qs({ account_id: accountId, currency })}`),
+  summary: (month: string, accountId?: number | null, currency?: string | null) =>
+    request<Summary>(`/api/summary/${month}${qs({ account_id: accountId, currency })}`),
+  recurring: (accountId?: number | null, currency?: string | null) =>
+    request<{ items: Recurring[]; active_monthly_total_pence: number }>(`/api/recurring${qs({ account_id: accountId, currency })}`),
+  earnings: (accountId?: number | null, currency?: string | null) =>
+    request<Earnings>(`/api/earnings${qs({ account_id: accountId, currency })}`),
   categories: () => request<string[]>("/api/categories"),
   imports: () => request<ImportRow[]>("/api/uploads"),
   accounts: () => request<Account[]>("/api/accounts"),
-  updateAccount: (id: number, patch: { name?: string; account_type?: AccountType }) =>
+  updateAccount: (id: number, patch: { name?: string; account_type?: AccountType; currency?: string }) =>
     request<Account>(`/api/accounts/${id}`, { method: "PATCH", ...json(patch) }),
   deleteAccount: (id: number) => request<{ deleted_transactions: number }>(`/api/accounts/${id}`, { method: "DELETE" }),
-  transactions: (params: { month?: string; category?: string; q?: string; accountId?: number | null }) =>
-    request<Txn[]>(`/api/transactions${qs({ month: params.month, category: params.category, q: params.q, account_id: params.accountId })}`),
+  transactions: (params: { month?: string; category?: string; q?: string; accountId?: number | null; currency?: string | null }) =>
+    request<Txn[]>(`/api/transactions${qs({ month: params.month, category: params.category, q: params.q, account_id: params.accountId, currency: params.currency })}`),
   upload: (files: File[], target: UploadTarget = { kind: "detect" }) => {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
@@ -256,8 +260,8 @@ export const api = {
       method: "PATCH",
       ...json({ category, apply_to_merchant: applyToMerchant }),
     }),
-  ask: (question: string, accountId?: number | null) =>
-    request<ChatReply>("/api/chat", { method: "POST", ...json({ question, account_id: accountId ?? null }) }),
+  ask: (question: string, accountId?: number | null, currency?: string | null) =>
+    request<ChatReply>("/api/chat", { method: "POST", ...json({ question, account_id: accountId ?? null, currency: currency ?? null }) }),
   rules: () => request<RuleRow[]>("/api/rules"),
   addRule: (spec: RuleSpec, category: string, taughtVia: "edit" | "question" | "chat") =>
     request<{ rule: string; moved: number }>("/api/rules", { method: "POST", ...json({ spec, category, taught_via: taughtVia }) }),

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { api, type Account, type AccountType } from "@/lib/api";
-import { money, plural, shortDate } from "@/lib/format";
+import { money, plural, setCurrency, shortDate, SYMBOLS } from "@/lib/format";
 import { AccountIcon, Info } from "./icons";
 
 const TYPES: { value: AccountType; label: string }[] = [
@@ -17,7 +17,8 @@ function AccountCard({ a, onChanged, onOpen }: { a: Account; onChanged: (msg?: s
   const [name, setName] = useState(a.name);
   const [confirming, setConfirming] = useState(false);
 
-  async function save(patch: { name?: string; account_type?: AccountType }) {
+  setCurrency(a.currency); // this card's balance in its own currency
+  async function save(patch: { name?: string; account_type?: AccountType; currency?: string }) {
     await api.updateAccount(a.id, patch);
     onChanged();
   }
@@ -50,6 +51,13 @@ function AccountCard({ a, onChanged, onOpen }: { a: Account; onChanged: (msg?: s
           <label className="visually-hidden" htmlFor={`type-${a.id}`}>Account type</label>
           <select id={`type-${a.id}`} className="cat-select" value={a.account_type} onChange={(e) => save({ account_type: e.target.value as AccountType })}>
             {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </dd>
+        <dt>Currency</dt>
+        <dd>
+          <label className="visually-hidden" htmlFor={`cur-${a.id}`}>Currency</label>
+          <select id={`cur-${a.id}`} className="cat-select" value={a.currency} onChange={(e) => save({ currency: e.target.value })}>
+            {Object.entries(SYMBOLS).map(([code, sym]) => <option key={code} value={code}>{sym} {code}</option>)}
           </select>
         </dd>
         <dt>Statements cover</dt>

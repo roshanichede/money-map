@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { SessionUser } from "@/auth";
 import { api, type Account, type Earnings, type Overview, type Recurring, type Summary } from "@/lib/api";
-import { isUnfinished, monthLabel } from "@/lib/format";
+import { isUnfinished, monthLabel, setCurrency, SYMBOLS } from "@/lib/format";
 import { Accounts } from "./Accounts";
 import { CategoryBars } from "./CategoryBars";
 import { ChatDrawer } from "./Chat";
@@ -32,6 +32,9 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
   const [view, setView] = useState<View>("overview");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState<number | null>(null);
+  // "All accounts" means all accounts in ONE currency: pounds and rupees are never added together.
+  const [scopeCurrency, setScopeCurrency] = useState<string | null>(null);
+  const [currencies, setCurrencies] = useState<string[]>([]);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [month, setMonth] = useState<string | null>(null); // "all" is allowed on the Transactions view
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -61,20 +64,25 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
   }, []);
 
   // ----- data -----
-  const load = useCallback((acct: number | null, keepMonth: boolean) => {
+  const load = useCallback((acct: number | null, keepMonth: boolean, cur: string | null = null) => {
     api.accounts().then((list) => {
       setAccounts(list);
       if (acct !== null && !list.some((a) => a.id === acct)) setAccountId(null);
     }).catch(() => {});
-    api.overview(acct)
+    api.currencies().then((list) => {
+      const codes = list.map((c) => c.code);
+      setCurrencies(codes);
+      setScopeCurrency((c) => (c && codes.includes(c) ? c : codes[0] ?? null));
+    }).catch(() => {});
+    api.overview(acct, cur)
       .then((o) => {
         setOverview(o);
         setError(null);
         setMonth((m) => (keepMonth && m && (m === "all" || o.months.some((x) => x.month === m)) ? m : o.months.at(-1)?.month ?? null));
       })
       .catch((e) => setError(e.message));
-    api.recurring(acct).then(setRecurring).catch(() => {});
-    api.earnings(acct).then(setEarnings).catch(() => {});
+    api.recurring(acct, cur).then(setRecurring).catch(() => {});
+    api.earnings(acct, cur).then(setEarnings).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -85,8 +93,8 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
   const refresh = useCallback((keepMonth = true) => {
     setRefreshKey((k) => k + 1);
     if (!keepMonth) setDataVersion((v) => v + 1);
-    load(accountId, keepMonth);
-  }, [accountId, load]);
+    load(accountId, keepMonth, scopeCurrency);
+  }, [accountId, scopeCurrency, load]);
 
   const months = useMemo(() => overview?.months ?? [], [overview]);
   const latest = months.at(-1)?.month ?? null;
@@ -95,8 +103,8 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
 
   useEffect(() => {
     if (!overviewMonth) return;
-    api.summary(overviewMonth, accountId).then(setSummary).catch((e) => setError(e.message));
-  }, [overviewMonth, accountId, refreshKey]);
+    api.summary(overviewMonth, accountId, scopeCurrency).then(setSummary).catch((e) => setError(e.message));
+  }, [overviewMonth, accountId, scopeCurrency, refreshKey]);
 
   useEffect(() => {
     if (!toast) return;
@@ -104,12 +112,20 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
     return () => clearTimeout(t);
   }, [toast]);
 
-  function chooseAccount(id: number | null) {
+  function chooseAccount(id: number | null, cur: string | null = scopeCurrency) {
+    const acct = accounts.find((a) => a.id === id);
+    const nextCur = acct ? acct.currency : cur;
     setAccountId(id);
+    setScopeCurrency(nextCur);
     setCategory(null);
-    load(id, true);
+    load(id, true, nextCur);
     setRefreshKey((k) => k + 1);
   }
+
+  // Everything below formats money in the currency on screen.
+  const activeCurrency = (accountId !== null ? accounts.find((a) => a.id === accountId)?.currency : scopeCurrency) ?? "GBP";
+  setCurrency(activeCurrency);
+  const multiCurrency = currencies.length > 1;
 
   const suggestions = useMemo(() => {
     if (!latest) return [];
@@ -123,7 +139,9 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
     ];
   }, [months, latest]);
 
-  const accountName = accountId === null ? "all accounts" : accounts.find((a) => a.id === accountId)?.name ?? "this account";
+  const accountName = accountId === null
+    ? (multiCurrency ? `all ${SYMBOLS[activeCurrency]} accounts` : "all accounts")
+    : accounts.find((a) => a.id === accountId)?.name ?? "this account";
   const title = VIEWS.find((v) => v.id === view)!.label;
   const hasData = (overview?.transaction_count ?? 0) > 0 || accounts.length > 0;
   const showFilters = hasData && (view === "overview" || view === "transactions" || view === "regular");
@@ -150,7 +168,7 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
           </div>
         </div>
         <MonthsChart months={months} selected={overviewMonth!} onSelect={setMonth} />
-        <Transactions month={overviewMonth!} accountId={accountId} accounts={accounts} category={null} onCategory={() => {}}
+        <Transactions month={overviewMonth!} accountId={accountId} currency={scopeCurrency} accounts={accounts} category={null} onCategory={() => {}}
                       categories={categories} refreshKey={refreshKey} limit={6} onSeeAll={() => go("transactions")}
                       onRecategorised={(m) => { setToast(m); refresh(); }} />
       </div>
@@ -158,7 +176,7 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
   } else if (view === "transactions") {
     body = (
       <Transactions key={search} initialQuery={search}
-                    month={month === "all" ? "" : overviewMonth ?? ""} accountId={accountId} accounts={accounts}
+                    month={month === "all" ? "" : overviewMonth ?? ""} accountId={accountId} currency={scopeCurrency} accounts={accounts}
                     category={category} onCategory={setCategory} categories={categories} refreshKey={refreshKey}
                     onRecategorised={(m) => { setToast(m); refresh(); }} />
     );
@@ -184,10 +202,18 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
             {showFilters && accounts.length > 1 && (
               <>
                 <label className="visually-hidden" htmlFor="acct-filter">Account</label>
-                <select id="acct-filter" className="select" value={accountId ?? ""}
-                        onChange={(e) => chooseAccount(e.target.value ? Number(e.target.value) : null)}>
-                  <option value="">All accounts</option>
-                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                <select id="acct-filter" className="select" value={accountId ?? `cur:${activeCurrency}`}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v.startsWith("cur:")) chooseAccount(null, v.slice(4));
+                          else chooseAccount(Number(v));
+                        }}>
+                  {multiCurrency
+                    ? currencies.map((c) => <option key={c} value={`cur:${c}`}>All {SYMBOLS[c]} accounts</option>)
+                    : <option value={`cur:${activeCurrency}`}>All accounts</option>}
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}{multiCurrency ? ` (${SYMBOLS[a.currency] ?? a.currency})` : ""}</option>
+                  ))}
                 </select>
               </>
             )}
@@ -214,8 +240,8 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
         {error && overview && <div className="error-box" style={{ marginBottom: 16 }}>{error}</div>}
         {body}
       </main>
-      <ChatDrawer key={`${dataVersion}-${accountId}`} open={chatOpen} onClose={() => setChatOpen(false)}
-                  suggestions={suggestions} accountId={accountId} scopeLabel={accountName}
+      <ChatDrawer key={`${dataVersion}-${accountId}-${activeCurrency}`} open={chatOpen} onClose={() => setChatOpen(false)}
+                  suggestions={suggestions} accountId={accountId} currency={activeCurrency} scopeLabel={accountName}
                   onTaught={() => refresh()} />
       <UploadDialog demo={demo} open={uploadOpen} onClose={() => setUploadOpen(false)} accounts={accounts} onImported={() => refresh(false)} />
       {toast && <div className="toast" role="status">{toast}</div>}
