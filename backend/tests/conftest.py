@@ -1,8 +1,9 @@
+import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -15,7 +16,21 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture()
 def engine():
-    eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    """In-memory SQLite by default. TEST_DATABASE_URL=postgresql+psycopg://... runs the suite on Postgres."""
+    url = os.environ.get("TEST_DATABASE_URL")
+    if url:
+        from app.db import Base
+        from app.passwords import throttle
+
+        eng = create_engine(url)
+        with eng.connect() as c:  # end sessions a previous test left open, so tables can be dropped
+            c.execute(text("select pg_terminate_backend(pid) from pg_stat_activity "
+                           "where datname = current_database() and pid <> pg_backend_pid()"))
+        eng.dispose()
+        Base.metadata.drop_all(eng)
+        throttle.fails.clear()
+    else:
+        eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     init_db(eng)
     return eng
 

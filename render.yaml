@@ -1,0 +1,19 @@
+# Render Blueprint for the MoneyMap API (FastAPI). The website runs on Vercel, the database on Neon.
+# In Render: New > Blueprint > pick this repo. It asks for the two values marked sync: false.
+services:
+  - type: web
+    name: moneymap-api
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: DATABASE_URL          # Neon connection string (postgresql://...)
+        sync: false
+      - key: INTERNAL_API_SECRET   # the same value as on Vercel
+        sync: false

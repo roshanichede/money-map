@@ -4,10 +4,21 @@ import os
 from sqlalchemy import create_engine, event, inspect
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./moneymap.db")
+
+
+def _normalise(url: str) -> str:
+    """Hosts hand out postgres:// or postgresql:// URLs; SQLAlchemy needs the psycopg driver named."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
+DATABASE_URL = _normalise(os.environ.get("DATABASE_URL", "sqlite:///./moneymap.db"))
 
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+# pool_pre_ping: hosted Postgres (e.g. Neon) closes idle connections; check before reuse.
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

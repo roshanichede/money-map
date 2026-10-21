@@ -61,8 +61,17 @@ function DropZone({ onFiles, busy }: { onFiles: (f: File[]) => void; busy: boole
   );
 }
 
-export function UploadDialog({ open, onClose, accounts, onImported }: {
-  open: boolean; onClose: () => void; accounts: Account[]; onImported: () => void;
+export function DemoNotice() {
+  return (
+    <p className="demo-notice" role="note">
+      <b>This is a public demo.</b> Try it with the sample data. Please don&apos;t upload real bank statements here:
+      to use MoneyMap with your own money, run it on your computer (see the README on GitHub).
+    </p>
+  );
+}
+
+export function UploadDialog({ open, onClose, accounts, onImported, demo = false }: {
+  open: boolean; onClose: () => void; accounts: Account[]; onImported: () => void; demo?: boolean;
 }) {
   const [choice, setChoice] = useState("detect");
   const [newName, setNewName] = useState("");
@@ -111,6 +120,7 @@ export function UploadDialog({ open, onClose, accounts, onImported }: {
           <h2 id="up-h">Add statements</h2>
           <button className="btn btn-ghost" onClick={onClose} aria-label="Close"><IconClose /></button>
         </div>
+        {demo && <DemoNotice />}
         <DropZone onFiles={send} busy={busy} />
         <div className="field">
           <label htmlFor="up-account">Which account are these from?</label>
@@ -143,7 +153,7 @@ export function UploadDialog({ open, onClose, accounts, onImported }: {
   );
 }
 
-export function Welcome({ onImported }: { onImported: () => void }) {
+export function Welcome({ onImported, demo = false }: { onImported: () => void; demo?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<UploadResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -162,12 +172,23 @@ export function Welcome({ onImported }: { onImported: () => void }) {
         money moved between your own accounts out of your spending, and answers questions in plain English.
       </p>
       <div className="card">
-        <DropZone onFiles={(f) => f.length && run(() => api.upload(f))} busy={busy} />
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
-          <button className="btn-link" onClick={() => run(() => api.demo())} disabled={busy}>
-            Or try it with sample data (current account, savings and a credit card)
-          </button>
-        </div>
+        {demo && <DemoNotice />}
+        {demo ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
+            <button className="btn btn-primary" onClick={() => run(() => api.demo())} disabled={busy}>
+              {busy ? "Loading sample data…" : "Try it with sample data"}
+            </button>
+          </div>
+        ) : (
+          <>
+            <DropZone onFiles={(f) => f.length && run(() => api.upload(f))} busy={busy} />
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+              <button className="btn-link" onClick={() => run(() => api.demo())} disabled={busy}>
+                Or try it with sample data (current account, savings and a credit card)
+              </button>
+            </div>
+          </>
+        )}
         {results && <UploadResults results={results} />}
         {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
       </div>

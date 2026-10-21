@@ -6,6 +6,8 @@
 import { currentUser, loginEnabled } from "@/auth";
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
+// A free hosted API can take up to a minute to wake after a quiet spell; wait for it rather than fail.
+export const maxDuration = 60;
 const PASS_REQUEST = ["content-type", "accept"];
 const PASS_RESPONSE = ["content-type", "content-disposition"];
 

@@ -424,3 +424,5 @@ button.hl-btn:hover { background: var(--sunken); }
 @media (max-width: 640px) {
   .table.compact .col-cat, .table.compact td:nth-last-child(2) { display: none; }
 }
+.demo-notice { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--r-ctl); background: color-mix(in srgb, var(--income) 10%, transparent); border: 1px solid color-mix(in srgb, var(--income) 30%, transparent); font-size: 13px; color: var(--ink); }
+.signin-card .demo-notice { margin-top: 16px; }

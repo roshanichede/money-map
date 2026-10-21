@@ -28,7 +28,7 @@ function readView(): View {
   return VIEWS.some((x) => x.id === v) ? v : "overview";
 }
 
-export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnabled: boolean }) {
+export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionUser; loginEnabled: boolean; demo?: boolean }) {
   const [view, setView] = useState<View>("overview");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -133,7 +133,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
   if (!overview) {
     body = error ? <div className="error-box">{error}</div> : <div className="skeleton" aria-busy="true" />;
   } else if (!hasData) {
-    body = <Welcome onImported={() => refresh(false)} />;
+    body = <Welcome demo={demo} onImported={() => refresh(false)} />;
   } else if (view === "overview") {
     body = summary && monthRow && summary.month === overviewMonth ? (
       <div className="stack">
@@ -217,7 +217,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
       <ChatDrawer key={`${dataVersion}-${accountId}`} open={chatOpen} onClose={() => setChatOpen(false)}
                   suggestions={suggestions} accountId={accountId} scopeLabel={accountName}
                   onTaught={() => refresh()} />
-      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} accounts={accounts} onImported={() => refresh(false)} />
+      <UploadDialog demo={demo} open={uploadOpen} onClose={() => setUploadOpen(false)} accounts={accounts} onImported={() => refresh(false)} />
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );

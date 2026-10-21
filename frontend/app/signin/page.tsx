@@ -18,6 +18,9 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
         <div className="brand"><Mark />MoneyMap</div>
         <h1>See where your money went</h1>
         <p className="quiet">Upload your bank statements. MoneyMap sorts your spending and finds your bills.</p>
+        {process.env.DEMO_SITE === "1" && (
+          <p className="demo-notice" role="note">A public demo: sign up with any email and explore it with sample data.</p>
+        )}
         <AuthForms googleEnabled={googleEnabled} startWith={mode === "signup" ? "signup" : "signin"} />
         <p className="fine">Your statements stay private to your account. Passwords are stored only as a secure hash.</p>
       </div>
