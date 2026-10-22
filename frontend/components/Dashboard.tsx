@@ -12,6 +12,7 @@ import { Highlights } from "./Highlights";
 import { LearnCard } from "./LearnCard";
 import { IconChat, IconUpload } from "./icons";
 import { MoneyIn } from "./MoneyIn";
+import { LiveTracking } from "./LiveTracking";
 import { MonthHero } from "./MonthHero";
 import { MonthsChart } from "./MonthsChart";
 import { RecurringList } from "./RecurringList";
@@ -186,6 +187,8 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
     body = <Accounts accounts={accounts} onAdd={() => setUploadOpen(true)}
                      onChanged={(msg) => { if (msg) setToast(msg); refresh(!msg); }}
                      onOpenAccount={(id) => { chooseAccount(id); go("transactions"); }} />;
+  } else if (view === "live") {
+    body = <LiveTracking accounts={accounts} />;
   } else {
     body = <YourData refreshKey={refreshKey} categorisedRate={overview.categorised_rate} loginEnabled={loginEnabled}
                      onDeleted={() => { setToast("All your data was deleted."); setAccountId(null); refresh(false); }}

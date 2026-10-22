@@ -17,6 +17,7 @@ Built because Lloyds doesn't email transaction alerts, has no personal API, and 
 | **Learns your patterns** | 200+ UK merchant keywords and 70+ brands sort most payments. The rest is personal, so MoneyMap learns rules from you: by person ("Preeti Misal"), by a word in the note ("GARBA"), and/or up to an amount ("up to £50"). Teach it by changing a category (it asks how widely to apply it), by answering its questions about unsure payments (biggest amounts first), or in the chat: "garba is entertainment". Every rule is previewed before saving, listed, and can be forgotten. It works out where a person's name ends and the note begins from your own statements. |
 | **Earnings, read honestly** | Salary is pay that arrives by payroll (BGC) or from the same company most months, even when shift pay varies. Money from people is never earnings: a flatmate's RENT share or a friend's CAB share is taken off that spending, and money with no note stays out of both. Self-transfers and card refunds are recognised too. |
 | **What stands out** | Each month gets a few plain sentences: the biggest cost, what went up and why, what isn't sorted yet, when your pay arrived. |
+| **Live from your phone** | Optional. An iPhone Shortcuts automation sends each Apple Pay tap (merchant, amount) or each bank text (Indian banks text every debit, UPI included) to a private per-account link. Payments appear within seconds tagged "just now"; when the statement is uploaded, its row replaces the phone entry (same account, same amount, within 4 days), keeping any category you set. Only a hash of each link is stored; links can be turned off. |
 | **Regular payments** | Weekly / monthly / quarterly / yearly charges with stable amounts, and when the next one is due. |
 | **Plain-English summary** | Each month opens with a sentence: what you spent, how it compares, and what drove it. |
 | **Ask your money** | Chat answers are calculated from your transactions first. With an API key, Claude words them, and any £ figure or % it writes that isn't in the calculated facts gets the reply thrown out. |
@@ -59,7 +60,7 @@ Add `ANTHROPIC_API_KEY` to `.env`.
 
 ### Tests
 
-`cd backend && .venv/bin/pytest`: 90 tests covering parsers (UK and Indian formats), currencies, learned rules and teaching by chat, money-in classification (salary, paid back, refunds, self-transfers), duplicates, reconciliation, accounts, transfer matching, credit cards, number masking, user isolation, the v1 database upgrade, categorisation, recurring payments and the chat guardrail.
+`cd backend && .venv/bin/pytest`: 105 tests covering live capture from the phone, parsers (UK and Indian formats), currencies, learned rules and teaching by chat, money-in classification (salary, paid back, refunds, self-transfers), duplicates, reconciliation, accounts, transfer matching, credit cards, number masking, user isolation, the v1 database upgrade, categorisation, recurring payments and the chat guardrail.
 
 ## Deploy (free): Vercel + Render + Neon
 

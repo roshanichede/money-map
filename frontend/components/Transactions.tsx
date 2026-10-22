@@ -134,6 +134,9 @@ export function Transactions(props: Props) {
                   <CategoryIcon category={t.category} size={16} />
                   <span className="payee-text">
                   {t.merchant} {t.is_transfer && <span className="tag" title="Matched with a payment in another of your accounts">transfer</span>}
+                  {t.pending && (
+                    <span className="tag tag-pending" title="Sent from your phone. When you upload the statement, its row replaces this one.">just now</span>
+                  )}
                   {!t.is_transfer && KIND_TAG[t.kind] && (
                     <span className={`tag tag-${t.kind}`} title={KIND_TAG[t.kind]!.title}>{KIND_TAG[t.kind]!.label}</span>
                   )}

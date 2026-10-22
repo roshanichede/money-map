@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from .accounts import create_account, find_by_number, find_by_overlap, guess_type
 from .categories import categorise
+from .capture import settle
 from .learning import apply_rules
 from .merchants import mask_numbers, normalise
 from .models import Account, Transaction, Upload
@@ -139,21 +140,26 @@ def import_file(session: Session, user_id: int, filename: str, content: bytes, *
     existing = set(session.scalars(select(Transaction.dedupe_key).where(
         Transaction.user_id == user_id, Transaction.dedupe_key.in_(keys))))
     added = 0
+    new_rows: list[Transaction] = []
     for t, key in zip(result.transactions, keys):
         if key in existing:
             continue
         existing.add(key)
         merchant_key, merchant = normalise(t.description)
         category, source = categorise(t.description, merchant_key, t.txn_type, t.amount_pence), "rule"
-        session.add(Transaction(
+        row = Transaction(
             user_id=user_id, account_id=account.id, upload_id=upload.id, date=t.date,
             description=t.description[:255], merchant=merchant, merchant_key=merchant_key, txn_type=t.txn_type,
             amount_pence=t.amount_pence, balance_pence=t.balance_pence,
             category=category, category_source=source, dedupe_key=key,
-        ))
+        )
+        session.add(row)
+        new_rows.append(row)
         added += 1
     upload.rows_added = added
     upload.duplicates_skipped = len(result.transactions) - added
+    session.flush()
+    upload.live_settled = settle(session, account.id, new_rows)  # payments sent from the phone earlier
     session.flush()
     apply_rules(session, user_id)  # what you've taught MoneyMap applies to new statements too
     detect_salary(session, user_id)

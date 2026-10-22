@@ -44,7 +44,8 @@ def _add_missing_columns(bind) -> None:
     """Columns added after a table first existed (create_all doesn't add columns to existing tables)."""
     from sqlalchemy import text
 
-    added = {"accounts": [("currency", "VARCHAR(3) NOT NULL DEFAULT 'GBP'")]}
+    added = {"accounts": [("currency", "VARCHAR(3) NOT NULL DEFAULT 'GBP'")],
+             "transactions": [("pending", "BOOLEAN NOT NULL DEFAULT FALSE")]}
     insp = inspect(bind)
     for table, columns in added.items():
         if table not in insp.get_table_names():

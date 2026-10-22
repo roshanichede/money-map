@@ -90,6 +90,11 @@ export const IconClose = ({ size = 16 }: P) => (
     <path d="M5 5l10 10M15 5L5 15" />
   </svg>
 );
+export const IconPhone = ({ size = 17 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" /><path d="M10.5 18.5h3M12 8v4l2.5 1.5" />
+  </svg>
+);
 export const IconSignOut = ({ size = 16 }: P) => (
   <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
     <path d="M8 3.5H5.5a2 2 0 00-2 2v9a2 2 0 002 2H8M12.5 6.5L16 10l-3.5 3.5M16 10H7.5" />

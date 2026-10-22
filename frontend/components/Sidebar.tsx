@@ -2,15 +2,16 @@
 
 import type { SessionUser } from "@/auth";
 import { signOutAction } from "@/app/actions";
-import { IconBank, IconList, IconOverview, IconRepeat, IconShield, IconSignOut, Mark } from "./icons";
+import { IconBank, IconList, IconOverview, IconPhone, IconRepeat, IconShield, IconSignOut, Mark } from "./icons";
 
-export type View = "overview" | "transactions" | "regular" | "accounts" | "data";
+export type View = "overview" | "transactions" | "regular" | "accounts" | "live" | "data";
 
 export const VIEWS: { id: View; label: string; Icon: (p: { size?: number }) => React.ReactElement }[] = [
   { id: "overview", label: "Overview", Icon: IconOverview },
   { id: "transactions", label: "Transactions", Icon: IconList },
   { id: "regular", label: "Regular payments", Icon: IconRepeat },
   { id: "accounts", label: "Accounts", Icon: IconBank },
+  { id: "live", label: "Live tracking", Icon: IconPhone },
   { id: "data", label: "Your data", Icon: IconShield },
 ];
 

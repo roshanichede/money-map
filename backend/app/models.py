@@ -5,7 +5,7 @@ Every row belongs to a user. Account numbers are never stored in full: only the 
 """
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -76,6 +76,7 @@ class Transaction(Base):
     category_source: Mapped[str] = mapped_column(String(10), default="rule")  # rule | learned | manual | transfer
     transfer_pair_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # the matching leg in another account
     dedupe_key: Mapped[str] = mapped_column(String(64))
+    pending: Mapped[bool] = mapped_column(Boolean, default=False)  # sent from the phone; replaced by the statement row
 
 
 class AppMeta(Base):
@@ -136,3 +137,20 @@ class Credential(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class CaptureKey(Base):
+    """A private link the phone posts payments to (Apple Pay or bank SMS), tied to one account.
+    Only a hash of the link's secret is stored."""
+
+    __tablename__ = "capture_keys"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    source: Mapped[str] = mapped_column(String(20))  # applepay | sms
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    last_used: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)

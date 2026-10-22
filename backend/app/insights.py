@@ -132,7 +132,8 @@ def txn_dict(t: Transaction) -> dict:
     return {"id": t.id, "date": t.date.isoformat(), "description": t.description, "merchant": t.merchant,
             "merchant_key": t.merchant_key, "type": t.txn_type, "amount_pence": t.amount_pence,
             "balance_pence": t.balance_pence, "category": t.category, "category_source": t.category_source,
-            "account_id": t.account_id, "is_transfer": t.transfer_pair_id is not None, "kind": kind(t)}
+            "account_id": t.account_id, "is_transfer": t.transfer_pair_id is not None, "kind": kind(t),
+            "pending": bool(t.pending)}
 
 
 # ---------- earnings ----------

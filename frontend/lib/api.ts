@@ -13,6 +13,20 @@ export type Txn = {
   is_transfer: boolean;
   /** How money in was read: salary, other income, a friend paying you back, or a shop refund. */
   kind: "spend" | "transfer" | "salary" | "income" | "paid_back" | "from_person" | "refund";
+  /** Sent from the phone (Apple Pay / bank text); replaced by the statement row when that's uploaded. */
+  pending: boolean;
+};
+
+export type CaptureLink = {
+  id: number;
+  account_id: number;
+  account: string | null;
+  currency: string | null;
+  source: "applepay" | "sms";
+  created_at: string;
+  uses: number;
+  last_used: string | null;
+  path?: string;
 };
 
 export type AccountType = "current" | "savings" | "credit_card" | "other";
@@ -269,5 +283,11 @@ export const api = {
   deleteRule: (id: string) => request<{ moved: number }>(`/api/rules/${id}`, { method: "DELETE" }),
   questions: () => request<{ total: number; items: Question[] }>("/api/questions"),
   dismissQuestion: (key: string) => request<{ ok: boolean }>("/api/questions/dismiss", { method: "POST", ...json({ key }) }),
+  captureLinks: () => request<CaptureLink[]>("/api/capture-links"),
+  createCaptureLink: (accountId: number, source: "applepay" | "sms") =>
+    request<CaptureLink>("/api/capture-links", { method: "POST", ...json({ account_id: accountId, source }) }),
+  revokeCaptureLink: (id: number) => request<{ ok: boolean }>(`/api/capture-links/${id}`, { method: "DELETE" }),
+  checkCaptureLink: (path: string) =>
+    request<{ ok: boolean; linked?: string }>(path, { method: "POST", ...json({ check: true }) }),
   deleteAll: () => request<{ deleted: { transactions: number } }>("/api/data", { method: "DELETE" }),
 };

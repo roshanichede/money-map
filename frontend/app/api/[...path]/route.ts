@@ -23,7 +23,11 @@ async function forward(req: Request, ctx: { params: Promise<{ path: string[] }> 
     if (v) headers.set(h, v);
   }
 
-  if (loginEnabled) {
+  // Payments posted by the phone's Shortcuts automation: the secret link itself is the credential,
+  // so no sign-in and no identity headers (the backend finds the account from the link).
+  const fromPhone = path[0] === "capture" && path.length === 2 && req.method === "POST";
+
+  if (loginEnabled && !fromPhone) {
     const secret = process.env.INTERNAL_API_SECRET;
     if (!secret) {
       return Response.json({ detail: "Login is on but INTERNAL_API_SECRET isn't set. See .env.example." }, { status: 500 });

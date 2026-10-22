@@ -1,12 +1,13 @@
 """MoneyMap API. Every route works on the signed-in user's data only (see auth.py)."""
 import calendar
+from datetime import date
 import csv
 import io
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -22,9 +23,9 @@ from .db import get_session, init_db
 from .importer import AccountChoiceError, import_file
 from .insights import (all_transactions, by_category, by_merchant, categorised_rate, compare_months, earnings,
                        highlights, in_month, months_overview, totals, txn_dict)
-from . import learning, teach
+from . import capture, learning, teach
 from .money import CURRENCIES, set_currency
-from .models import ACCOUNT_TYPES, Account, Credential, Dismissed, MerchantRule, Rule, Transaction, Upload, User
+from .models import ACCOUNT_TYPES, Account, CaptureKey, Credential, Dismissed, MerchantRule, Rule, Transaction, Upload, User
 from .parsers import ParseError
 from .recurring import detect_recurring
 from .transfers import link_transfers, unlink_account
@@ -270,6 +271,7 @@ def delete_account(account_id: int, user: User = Depends(current_user), session:
     n = session.scalar(select(func.count()).select_from(Transaction).where(Transaction.account_id == account_id))
     session.execute(delete(Transaction).where(Transaction.account_id == account_id))
     session.execute(delete(Upload).where(Upload.account_id == account_id))
+    session.execute(delete(CaptureKey).where(CaptureKey.account_id == account_id))
     session.execute(delete(Account).where(Account.id == account_id))
     session.commit()
     return {"deleted_transactions": n}
@@ -472,7 +474,7 @@ def delete_all(user: User = Depends(current_user), session: Session = Depends(ge
         "transactions": session.scalar(select(func.count()).select_from(Transaction).where(Transaction.user_id == user.id)),
         "accounts": session.scalar(select(func.count()).select_from(Account).where(Account.user_id == user.id)),
     }
-    for model in (Transaction, MerchantRule, Rule, Dismissed, Upload, Account):  # the login itself is kept
+    for model in (Transaction, MerchantRule, Rule, Dismissed, Upload, CaptureKey, Account):  # the login itself is kept
         session.execute(delete(model).where(model.user_id == user.id))
     session.commit()
     return {"deleted": counts}
@@ -483,3 +485,92 @@ def relink(user: User = Depends(current_user), session: Session = Depends(get_se
     pairs = link_transfers(session, user.id)
     session.commit()
     return {"pairs": pairs}
+
+
+# ---------- live capture from the phone ----------
+
+class NewCaptureLink(BaseModel):
+    account_id: int
+    source: str
+
+
+def _link_dict(session: Session, k: CaptureKey) -> dict:
+    acct = session.get(Account, k.account_id)
+    return {"id": k.id, "account_id": k.account_id, "account": acct.name if acct else None,
+            "currency": acct.currency if acct else None, "source": k.source,
+            "created_at": k.created_at.isoformat(), "uses": k.uses,
+            "last_used": k.last_used.isoformat() if k.last_used else None}
+
+
+@app.get("/api/capture-links")
+def capture_links(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    rows = session.scalars(select(CaptureKey).where(CaptureKey.user_id == user.id, CaptureKey.revoked.is_(False))
+                           .order_by(CaptureKey.created_at))
+    return [_link_dict(session, k) for k in rows]
+
+
+@app.post("/api/capture-links")
+def create_capture_link(body: NewCaptureLink, user: User = Depends(current_user),
+                        session: Session = Depends(get_session)):
+    _own_account(session, user, body.account_id)
+    if body.source not in capture.SOURCES:
+        raise HTTPException(400, "Source must be applepay or sms.")
+    token = capture.new_token()
+    key = CaptureKey(user_id=user.id, account_id=body.account_id, source=body.source,
+                     token_hash=capture.token_hash(token))
+    session.add(key)
+    session.commit()
+    # The full link is only ever shown now; afterwards only its hash exists.
+    return {**_link_dict(session, key), "path": f"/api/capture/{token}"}
+
+
+@app.delete("/api/capture-links/{link_id}")
+def revoke_capture_link(link_id: int, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    key = session.get(CaptureKey, link_id)
+    if key is None or key.user_id != user.id:
+        raise HTTPException(404, "Link not found.")
+    key.revoked = True
+    session.commit()
+    return {"ok": True}
+
+
+@app.post("/api/capture/{token}")
+async def capture_payment(token: str, request: Request, session: Session = Depends(get_session)):
+    """Called by the phone's Shortcuts automation. The secret link is the only credential."""
+    key = capture.find_key(session, token)
+    if key is None:
+        raise HTTPException(404, "Not found.")
+    if not capture.limit.allow(key.token_hash):
+        raise HTTPException(429, "Too many payments sent in the last hour.")
+    raw = (await request.body())[:8000]
+    data: dict = {}
+    if "json" in request.headers.get("content-type", ""):
+        try:
+            import json as _json
+
+            parsed = _json.loads(raw or b"{}")
+            data = parsed if isinstance(parsed, dict) else {"sms": str(parsed)}
+        except ValueError:
+            data = {"sms": raw.decode("utf-8", "replace")}
+    else:
+        form_like = raw.decode("utf-8", "replace")
+        data = {"sms": form_like}
+    acct = session.get(Account, key.account_id)
+    if data.get("check"):  # "Check link" on the setup page: confirms the link works, records nothing
+        return {"ok": True, "recorded": None, "linked": acct.name}
+    set_currency(acct.currency)
+    today = date.today()
+    try:
+        if key.source == "applepay" or data.get("merchant") is not None:
+            when, desc, amount = capture.from_apple_pay(str(data.get("merchant", "")), str(data.get("amount", "")), today)
+        else:
+            text = str(data.get("sms") or data.get("message") or data.get("text") or "")
+            when, desc, amount = capture.from_sms(text, today)
+    except (capture.NotAPayment, ParseError) as exc:
+        return {"ok": True, "recorded": None, "ignored": str(exc)}
+    t = capture.record(session, key, when, desc, amount)
+    from .money import fmt_money
+
+    return {"ok": True, "recorded": {"date": t.date.isoformat(), "merchant": t.merchant,
+                                     "amount": fmt_money(t.amount_pence), "category": t.category,
+                                     "account": acct.name}}
