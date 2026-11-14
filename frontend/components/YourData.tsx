@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+import Link from "next/link";
+
+import { signOutAction } from "@/app/actions";
 import { api, type ImportRow, type RuleRow } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { Check, Dash, Warn } from "./icons";
@@ -15,6 +18,19 @@ export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted,
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [rules, setRules] = useState<RuleRow[]>([]);
   const [confirming, setConfirming] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [closeError, setCloseError] = useState<string | null>(null);
+
+  async function deleteAccount() {
+    setCloseError(null);
+    try {
+      await api.deleteMe();
+      await signOutAction();
+    } catch (e) {
+      setCloseError((e as Error).message);
+    }
+  }
 
   useEffect(() => { api.imports().then(setImports).catch(() => setImports([])); }, [refreshKey]);
   useEffect(() => { api.rules().then(setRules).catch(() => setRules([])); }, [refreshKey]);
@@ -101,6 +117,28 @@ export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted,
           </div>
           {confirming && <p className="muted small" style={{ margin: "10px 0 0" }}>This removes every account, transaction and everything MoneyMap has learned. It can&apos;t be undone.</p>}
         </section>
+        {loginEnabled && (
+          <section className="card danger-zone" aria-labelledby="close-h">
+            <div className="card-head"><h2 id="close-h">Delete my account</h2></div>
+            <p className="quiet" style={{ marginTop: 0 }}>
+              Removes your login as well as all your data, straight away. You&apos;ll be signed out.
+            </p>
+            {closing ? (
+              <div className="field field-row">
+                <input className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type DELETE"
+                       aria-label="Type DELETE to confirm" autoComplete="off" />
+                <button className="btn btn-danger" disabled={typed !== "DELETE"} onClick={deleteAccount}>Delete for good</button>
+                <button className="btn-link" onClick={() => { setClosing(false); setTyped(""); }}>Cancel</button>
+              </div>
+            ) : (
+              <button className="btn btn-danger" onClick={() => setClosing(true)}>Delete my account</button>
+            )}
+            {closeError && <div className="error-box" style={{ marginTop: 10 }}>{closeError}</div>}
+            <p className="muted small" style={{ margin: "12px 0 0" }}>
+              Read the <Link href="/privacy">privacy notice</Link> and <Link href="/terms">terms</Link>.
+            </p>
+          </section>
+        )}
       </div>
     </div>
   );

@@ -210,6 +210,14 @@ export type ChatReply = {
   proposal?: Proposal | null;
 };
 
+export type OwnerStats = {
+  users: number; new_this_week: number; active_this_week: number; active_this_month: number;
+  users_with_statements: number; statements_uploaded: number; phone_links_in_use: number; rules_taught: number;
+  accounts_by_currency: Record<string, number>; signup_mode: string; email_set_up: boolean;
+};
+export type Invite = { id: number; code: string; note: string; uses: number; max_uses: number; created_at: string };
+export type FeedbackRow = { id: number; text: string; page: string; reply_to: string | null; created_at: string };
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
   if (!res.ok) {
@@ -241,7 +249,16 @@ const qs = (params: Record<string, string | number | null | undefined>) => {
 };
 
 export const api = {
-  me: () => request<{ email: string | null; name: string; login_mode: boolean }>("/api/me"),
+  me: () => request<{ email: string | null; name: string; login_mode: boolean; is_owner?: boolean }>("/api/me"),
+  deleteMe: () => request<{ deleted: boolean }>("/api/me", { method: "DELETE", ...json({ confirm: "DELETE" }) }),
+  feedback: (text: string, page: string, canReply: boolean) =>
+    request<{ ok: boolean }>("/api/feedback", { method: "POST", ...json({ text, page, can_reply: canReply }) }),
+  ownerStats: () => request<OwnerStats>("/api/owner/stats"),
+  invites: () => request<Invite[]>("/api/owner/invites"),
+  createInvite: (note: string, maxUses: number) =>
+    request<Invite>("/api/owner/invites", { method: "POST", ...json({ note, max_uses: maxUses }) }),
+  revokeInvite: (id: number) => request<{ ok: boolean }>(`/api/owner/invites/${id}`, { method: "DELETE" }),
+  ownerFeedback: () => request<FeedbackRow[]>("/api/owner/feedback"),
   currencies: () => request<{ code: string; symbol: string }[]>("/api/currencies"),
   overview: (accountId?: number | null, currency?: string | null) =>
     request<Overview>(`/api/overview${qs({ account_id: accountId, currency })}`),

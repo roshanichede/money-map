@@ -199,16 +199,8 @@ function QueueList({ items, onRetry, onRemove }: { items: Item[]; onRetry: (id: 
   );
 }
 
-export function DemoNotice() {
-  return (
-    <p className="demo-notice" role="note">
-      Demo site: the quickest way in is the sample data.
-    </p>
-  );
-}
-
-export function UploadDialog({ open, onClose, accounts, onImported, demo = false }: {
-  open: boolean; onClose: () => void; accounts: Account[]; onImported: () => void; demo?: boolean;
+export function UploadDialog({ open, onClose, accounts, onImported }: {
+  open: boolean; onClose: () => void; accounts: Account[]; onImported: () => void;
 }) {
   const [choice, setChoice] = useState("detect");
   const [newName, setNewName] = useState("");
@@ -259,7 +251,6 @@ export function UploadDialog({ open, onClose, accounts, onImported, demo = false
           <h2 id="up-h">Add statements</h2>
           <button className="btn btn-ghost" onClick={close} aria-label="Close"><IconClose /></button>
         </div>
-        {demo && <DemoNotice />}
         <DropZone onFiles={add} busy={queue.busy} />
         <div className="field">
           <label htmlFor="up-account">Which account are these from?</label>
@@ -294,7 +285,7 @@ export function UploadDialog({ open, onClose, accounts, onImported, demo = false
   );
 }
 
-export function Welcome({ onImported, demo = false }: { onImported: () => void; demo?: boolean }) {
+export function Welcome({ onImported }: { onImported: () => void }) {
   const queue = useUploadQueue(() => ({ kind: "detect" }), () => {}, () => onImported());
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<UploadResult[] | null>(null);
@@ -314,24 +305,13 @@ export function Welcome({ onImported, demo = false }: { onImported: () => void; 
         money moved between your own accounts out of your spending, and answers questions in plain English.
       </p>
       <div className="card">
-        {demo && <DemoNotice />}
-        {demo ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
-            <button className="btn btn-primary" onClick={() => run(() => api.demo())} disabled={busy}>
-              {busy ? "Loading sample data…" : "Try it with sample data"}
-            </button>
-          </div>
-        ) : (
-          <>
-            <DropZone onFiles={(f) => f.length && queue.add(f)} busy={queue.busy} />
-            <QueueList items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
-              <button className="btn-link" onClick={() => run(() => api.demo())} disabled={busy}>
-                Or try it with sample data (current account, savings and a credit card)
-              </button>
-            </div>
-          </>
-        )}
+        <DropZone onFiles={(f) => f.length && queue.add(f)} busy={queue.busy} />
+        <QueueList items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+          <button className="btn-link" onClick={() => run(() => api.demo())} disabled={busy}>
+            {busy ? "Loading sample data…" : "Not ready to upload? Look around with sample data first"}
+          </button>
+        </div>
         {results && <UploadResults results={results} />}
         {error && <div className="error-box" style={{ marginTop: 12 }}>{error}</div>}
       </div>

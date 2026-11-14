@@ -106,3 +106,13 @@ export function AccountIcon({ type, size = 18 }: { type: string; size?: number }
   if (type === "savings") return <IconPiggy size={size} />;
   return <IconBank size={size} />;
 }
+export const IconFeedback = ({ size = 17 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+    <path d="M3.5 4.5h13v9h-7l-3.5 3v-3H3.5z" /><path d="M7 8h6M7 10.5h4" />
+  </svg>
+);
+export const IconKey = ({ size = 17 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+    <circle cx="7" cy="12.5" r="3.5" /><path d="M9.6 10l6-6M13.5 6l2 2" />
+  </svg>
+);

@@ -8,6 +8,7 @@ X-Internal-Secret. Requests without the right secret are rejected, so the header
 """
 import hmac
 import os
+from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote
 
 from fastapi import Depends, HTTPException, Request
@@ -61,7 +62,45 @@ def current_user(request: Request, session: Session = Depends(get_session)) -> U
     email = request.headers.get("x-user-email", "").strip().lower()
     if not email or "@" not in email:
         raise HTTPException(401, "Not signed in.")
-    return _get_or_create(session, email, unquote(request.headers.get("x-user-name", ""))[:255])
+    provider = request.headers.get("x-user-provider", "")
+    if provider == "credentials":
+        # Password accounts are created at sign-up, never here: a session for a deleted account stops working.
+        user = session.scalar(select(User).where(User.email == email))
+        if user is None:
+            raise HTTPException(401, "This account no longer exists. Sign in again.")
+    else:
+        existing = session.scalar(select(User).where(User.email == email))
+        if existing is None and os.environ.get("SIGNUP_MODE", "invite") != "open" and _has_accounts(session):
+            raise HTTPException(403, "Sign-up is by invitation for now.")  # a new Google user while invite-only
+        user = _get_or_create(session, email, unquote(request.headers.get("x-user-name", ""))[:255])
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if user.last_seen is None or now - user.last_seen > timedelta(hours=1):
+        user.last_seen = now
+        session.commit()
+    return user
+
+
+def _has_accounts(session: Session) -> bool:
+    return bool(session.scalar(select(func.count()).select_from(User).where(User.email != LOCAL_EMAIL)))
+
+
+def owner_emails(session: Session) -> set[str]:
+    """OWNER_EMAILS if set; otherwise the first account ever created (the person who deployed it)."""
+    configured = {e.strip().lower() for e in os.environ.get("OWNER_EMAILS", "").split(",") if e.strip()}
+    if configured:
+        return configured
+    first = session.scalar(select(User).where(User.email != LOCAL_EMAIL).order_by(User.id))
+    return {first.email} if first else set()
+
+
+def is_owner(session: Session, user: User) -> bool:
+    return login_mode() and user.email in owner_emails(session)
+
+
+def owner_only(user: User = Depends(current_user), session: Session = Depends(get_session)) -> User:
+    if not is_owner(session, user):
+        raise HTTPException(404, "Not found.")
+    return user
 
 
 def internal_only(request: Request) -> None:

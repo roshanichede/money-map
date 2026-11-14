@@ -404,10 +404,10 @@ button.hl-btn:hover { background: var(--sunken); }
 @media (max-width: 640px) {
   .table.compact .col-cat, .table.compact td:nth-last-child(2) { display: none; }
 }
-.demo-notice { margin: 0 0 12px; font-size: 13px; color: var(--muted); text-align: center; }
 
 /* ---------- sign in / create account ---------- */
 .auth { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); background: var(--card); }
+.auth.auth-single { grid-template-columns: minmax(0, 1fr); }
 .auth-story { background: #123a6b; color: #e9f0fa; padding: 40px 56px; display: flex; flex-direction: column; gap: 40px; }
 .auth-brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 17px; letter-spacing: -0.01em; }
 .auth-brand svg { width: 24px; height: 24px; }
@@ -444,8 +444,7 @@ form.auth-form { display: grid; gap: 14px; }
 .auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .auth-switch { margin: 20px 0 0; color: var(--ink-2); font-size: 14px; }
 .auth-switch .btn-link { font-size: 14px; }
-.auth-demo { margin: 28px 0 0; padding-top: 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-.auth-demo svg { flex: none; margin-top: 2px; }
+.auth-legal { margin: 28px 0 0; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 @media (max-width: 900px) {
   .auth { grid-template-columns: minmax(0, 1fr); }
   .auth-story { padding: 28px 20px 32px; gap: 24px; }
@@ -497,3 +496,25 @@ form.auth-form { display: grid; gap: 14px; }
 .live-steps { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.5; }
 .live-steps code, .live-intro code { font-size: 12.5px; background: var(--sunken); padding: 1px 5px; border-radius: 4px; }
 .live-note { margin: 14px 0 0; }
+
+/* ---------- account pages, legal, feedback, owner ---------- */
+.auth-notice { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--accent-wash); color: var(--ink); font-size: 14px; line-height: 1.5; }
+.auth-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.auth-row a, .auth-legal a { color: var(--accent); }
+.auth-links { margin: 20px 0 0; font-size: 14px; color: var(--ink-2); }
+.legal { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; line-height: 1.6; }
+.legal h1 { font-size: 30px; letter-spacing: -0.02em; margin: 18px 0 4px; }
+.legal h2 { font-size: 18px; margin: 30px 0 8px; }
+.legal p, .legal li { color: var(--ink-2); }
+.legal ul { padding-left: 20px; }
+.legal .auth-brand { color: var(--ink); text-decoration: none; }
+.legal-date { color: var(--muted); font-size: 13px; margin: 0; }
+.sidebar-feedback { margin-top: 10px; font: inherit; }
+.feedback-text { width: 100%; min-height: 120px; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); resize: vertical; }
+.check-row { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; color: var(--ink-2); margin-top: 10px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; }
+.stat b { display: block; font-size: 26px; letter-spacing: -0.02em; }
+.stat span { color: var(--muted); font-size: 13px; }
+.invite-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; letter-spacing: 0.04em; }
+.danger-zone { border-color: color-mix(in srgb, var(--bad) 35%, var(--line)); }

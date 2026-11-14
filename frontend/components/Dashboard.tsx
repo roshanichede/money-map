@@ -19,6 +19,8 @@ import { RecurringList } from "./RecurringList";
 import { Sidebar, VIEWS, type View } from "./Sidebar";
 import { Transactions } from "./Transactions";
 import { UploadDialog, Welcome } from "./UploadDialog";
+import { FeedbackDialog } from "./Feedback";
+import { Owner } from "./Owner";
 import { YourData } from "./YourData";
 
 type RecurringData = { items: Recurring[]; active_monthly_total_pence: number };
@@ -29,7 +31,7 @@ function readView(): View {
   return VIEWS.some((x) => x.id === v) ? v : "overview";
 }
 
-export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionUser; loginEnabled: boolean; demo?: boolean }) {
+export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnabled: boolean }) {
   const [view, setView] = useState<View>("overview");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -49,6 +51,9 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
   const [chatOpen, setChatOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  useEffect(() => { if (loginEnabled) api.me().then((m) => setIsOwner(Boolean(m.is_owner))).catch(() => {}); }, [loginEnabled]);
   const [error, setError] = useState<string | null>(null);
 
   // ----- routing by hash, so back/forward and links work -----
@@ -143,7 +148,7 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
   const accountName = accountId === null
     ? (multiCurrency ? `all ${SYMBOLS[activeCurrency]} accounts` : "all accounts")
     : accounts.find((a) => a.id === accountId)?.name ?? "this account";
-  const title = VIEWS.find((v) => v.id === view)!.label;
+  const title = view === "owner" && isOwner ? "Owner" : VIEWS.find((v) => v.id === view)!.label;
   const hasData = (overview?.transaction_count ?? 0) > 0 || accounts.length > 0;
   const showFilters = hasData && (view === "overview" || view === "transactions" || view === "regular");
 
@@ -151,8 +156,10 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
   let body: React.ReactNode;
   if (!overview) {
     body = error ? <div className="error-box">{error}</div> : <div className="skeleton" aria-busy="true" />;
+  } else if (view === "owner" && isOwner) {
+    body = <Owner />;
   } else if (!hasData) {
-    body = <Welcome demo={demo} onImported={() => refresh(false)} />;
+    body = <Welcome onImported={() => refresh(false)} />;
   } else if (view === "overview") {
     body = summary && monthRow && summary.month === overviewMonth ? (
       <div className="stack">
@@ -197,10 +204,11 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
 
   return (
     <div className="app">
-      <Sidebar view={view} onView={go} user={user} loginEnabled={loginEnabled} accountCount={accounts.length} />
+      <Sidebar view={view} onView={go} user={user} loginEnabled={loginEnabled} accountCount={accounts.length}
+               isOwner={isOwner} onFeedback={() => setFeedbackOpen(true)} />
       <main className="main">
         <div className="topbar">
-          <h1>{hasData ? title : "Welcome"}</h1>
+          <h1>{hasData || (view === "owner" && isOwner) ? title : "Welcome"}</h1>
           <div className="topbar-controls">
             {showFilters && accounts.length > 1 && (
               <>
@@ -246,7 +254,9 @@ export function Dashboard({ user, loginEnabled, demo = false }: { user: SessionU
       <ChatDrawer key={`${dataVersion}-${accountId}-${activeCurrency}`} open={chatOpen} onClose={() => setChatOpen(false)}
                   suggestions={suggestions} accountId={accountId} currency={activeCurrency} scopeLabel={accountName}
                   onTaught={() => refresh()} />
-      <UploadDialog demo={demo} open={uploadOpen} onClose={() => setUploadOpen(false)} accounts={accounts} onImported={() => refresh(false)} />
+      <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} accounts={accounts} onImported={() => refresh(false)} />
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} page={title} canReplyDefault={false}
+                      onSent={() => setToast("Thanks, your feedback was sent.")} />
       {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );

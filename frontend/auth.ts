@@ -26,7 +26,8 @@ export const googleEnabled = loginEnabled && Boolean(process.env.AUTH_GOOGLE_ID 
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
 /** Server-to-server call to the backend's account endpoints, which only accept the shared secret. */
-export async function accountCall(path: "signin" | "signup", body: Record<string, string>) {
+export async function accountCall(path: "signin" | "signup" | "verify" | "resend" | "forgot" | "reset",
+                                  body: Record<string, string>) {
   const res = await fetch(`${API_URL}/api/account/${path}`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-internal-secret": process.env.INTERNAL_API_SECRET ?? "" },
@@ -34,7 +35,9 @@ export async function accountCall(path: "signin" | "signup", body: Record<string
     cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, data } as { ok: boolean; status: number; data: { email?: string; name?: string; detail?: string } };
+  return { ok: res.ok, status: res.status, data } as {
+    ok: boolean; status: number; data: { email?: string; name?: string; detail?: string; needs_confirming?: boolean };
+  };
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -51,17 +54,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         ...(googleEnabled ? [Google] : []),
       ]
     : [],
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 14 * 24 * 60 * 60 }, // signed out after 14 days
+  callbacks: {
+    // Remember how someone signed in: the API only auto-creates accounts for Google sign-ins.
+    jwt({ token, account }) {
+      if (account) token.provider = account.provider;
+      return token;
+    },
+    session({ session, token }) {
+      (session.user as { provider?: string }).provider = (token.provider as string | undefined) ?? "credentials";
+      return session;
+    },
+  },
   pages: { signIn: "/signin" },
   trustHost: true,
   secret: sessionSecret(),
 });
 
-export type SessionUser = { name: string; email: string; image: string | null } | null;
+export type SessionUser = { name: string; email: string; image: string | null; provider: string } | null;
 
 export async function currentUser(): Promise<SessionUser> {
   if (!loginEnabled) return null;
   const session = await auth();
   const u = session?.user;
-  return u?.email ? { name: u.name ?? u.email, email: u.email, image: u.image ?? null } : null;
+  return u?.email
+    ? { name: u.name ?? u.email, email: u.email, image: u.image ?? null,
+        provider: (u as { provider?: string }).provider ?? "credentials" }
+    : null;
 }

@@ -17,3 +17,11 @@ services:
         sync: false
       - key: INTERNAL_API_SECRET   # Render generates it; copy the same value to Vercel
         generateValue: true
+      - key: APP_URL               # the website address, for links in emails
+        value: https://money-map-ruddy.vercel.app
+      - key: SIGNUP_MODE           # invite (default) | open | closed
+        value: invite
+      - key: MAIL_FROM             # e.g. MoneyMap <your verified Brevo sender>
+        sync: false
+      - key: BREVO_API_KEY         # brevo.com > SMTP & API > API keys
+        sync: false

@@ -2,7 +2,11 @@
 
 import { useActionState, useState } from "react";
 
-import { signInWithGoogle, signInWithPassword, signUpWithPassword, type FormState } from "@/app/actions";
+import Link from "next/link";
+
+import {
+  resendConfirmation, signInWithGoogle, signInWithPassword, signUpWithPassword, type FormState,
+} from "@/app/actions";
 
 function GoogleG() {
   return (
@@ -15,22 +19,53 @@ function GoogleG() {
   );
 }
 
-function SignInForm() {
-  const [state, action, pending] = useActionState<FormState, FormData>(signInWithPassword, {});
+function Resend({ email }: { email: string }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(resendConfirmation, {});
+  if (state.notice) return <p className="auth-notice" role="status">{state.notice}</p>;
   return (
-    <form action={action} className="auth-form" noValidate>
-      <label>Email<input className="input" name="email" type="email" autoComplete="email" required defaultValue={state.email} /></label>
-      <label>Password<input className="input" name="password" type="password" autoComplete="current-password" required /></label>
-      {state.error && <p className="auth-error" role="alert">{state.error}</p>}
-      <button className="btn btn-primary auth-submit" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</button>
+    <form action={action}>
+      <input type="hidden" name="email" value={email} />
+      <button className="btn-link small" disabled={pending}>{pending ? "Sending…" : "Send the link again"}</button>
     </form>
   );
 }
 
-function SignUpForm() {
+function SignInForm() {
+  const [state, action, pending] = useActionState<FormState, FormData>(signInWithPassword, {});
+  return (
+    <>
+      <form action={action} className="auth-form" noValidate>
+        <label>Email<input className="input" name="email" type="email" autoComplete="email" required defaultValue={state.email} /></label>
+        <label>
+          <span className="auth-row">Password<Link href="/forgot" className="small">Forgot password?</Link></span>
+          <input className="input" name="password" type="password" autoComplete="current-password" required />
+        </label>
+        {state.error && <p className="auth-error" role="alert">{state.error}</p>}
+        <button className="btn btn-primary auth-submit" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</button>
+      </form>
+      {state.unconfirmed && state.email && <div style={{ marginTop: 10 }}><Resend email={state.email} /></div>}
+    </>
+  );
+}
+
+function SignUpForm({ invite }: { invite: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(signUpWithPassword, {});
+  if (state.notice) {
+    return (
+      <div className="auth-form">
+        <p className="auth-notice" role="status">{state.notice}</p>
+        {state.email && <Resend email={state.email} />}
+      </div>
+    );
+  }
   return (
     <form action={action} className="auth-form" noValidate>
+      <label>
+        Invite code
+        <input className="input" name="invite" autoComplete="off" autoCapitalize="characters" placeholder="ABCD-EFGH"
+               defaultValue={state.invite ?? invite} />
+        <span className="muted small">MoneyMap is invite-only while it&apos;s in beta.</span>
+      </label>
       <label>Your name<input className="input" name="name" autoComplete="name" defaultValue={state.name} /></label>
       <label>Email<input className="input" name="email" type="email" autoComplete="email" required defaultValue={state.email} /></label>
       <label>
@@ -44,8 +79,8 @@ function SignUpForm() {
   );
 }
 
-export function AuthForms({ googleEnabled, startWith, demo = false }: {
-  googleEnabled: boolean; startWith: "signin" | "signup"; demo?: boolean;
+export function AuthForms({ googleEnabled, startWith, invite = "" }: {
+  googleEnabled: boolean; startWith: "signin" | "signup"; invite?: string;
 }) {
   const [mode, setMode] = useState(startWith);
   const signingIn = mode === "signin";
@@ -63,19 +98,17 @@ export function AuthForms({ googleEnabled, startWith, demo = false }: {
           <div className="auth-or"><span>or with email</span></div>
         </>
       )}
-      {signingIn ? <SignInForm key="in" /> : <SignUpForm key="up" />}
+      {signingIn ? <SignInForm key="in" /> : <SignUpForm key="up" invite={invite} />}
       <p className="auth-switch">
         {signingIn ? "New to MoneyMap?" : "Already have an account?"}{" "}
         <button className="btn-link" onClick={() => setMode(signingIn ? "signup" : "signin")}>
           {signingIn ? "Create an account" : "Sign in"}
         </button>
       </p>
-      {demo && (
-        <p className="auth-demo">
-          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" /><path d="M12 11v5M12 8h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          Demo site: create an account with any email and explore it with sample data.
-        </p>
-      )}
+      <p className="auth-legal">
+        By continuing you agree to the <Link href="/terms">terms</Link> and <Link href="/privacy">privacy notice</Link>.
+        Written in plain English, and short.
+      </p>
     </>
   );
 }

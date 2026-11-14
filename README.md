@@ -29,7 +29,8 @@ Built because Lloyds doesn't email transaction alerts, has no personal API, and 
 - **Account and card numbers are never stored in full**, not even inside descriptions: only the last four digits, plus a salted one-way hash to recognise the same account later.
 - Transactions live in `backend/moneymap.db` (SQLite) by default, or Postgres via `DATABASE_URL`. Every row belongs to a user.
 - The chat sends Claude only the calculated facts for that answer (totals, merchant names, dates), and only if `ANTHROPIC_API_KEY` is set.
-- "Your data" in the app exports everything as CSV or deletes it all.
+- "Your data" in the app exports everything as CSV, deletes it all, or deletes the account itself.
+- Sign-up is invite-only by default, emails are confirmed before first sign-in, sessions end after 14 days, and the site sends strict security headers (CSP, no framing, no caching of API responses). Plain-English [privacy](frontend/app/privacy/page.tsx) and [terms](frontend/app/terms/page.tsx) pages are built in.
 
 ## Run it
 
@@ -64,13 +65,24 @@ Add `ANTHROPIC_API_KEY` to `.env`.
 
 ## Deploy (free): Vercel + Render + Neon
 
-The public demo runs on three free services. Real statements are best kept on your own computer.
+MoneyMap runs as an invite-only beta on three free services.
 
 | Part | Service | Settings |
 |---|---|---|
 | Database | [Neon](https://neon.tech) Postgres | Create a project (region: Frankfurt). Copy the connection string. |
 | API | [Render](https://render.com) web service | New → Blueprint → this repo (uses `render.yaml`). Paste the Neon string as `DATABASE_URL`; Render generates `INTERNAL_API_SECRET`. |
-| Website | [Vercel](https://vercel.com) | Import this repo, Root Directory `frontend`. Environment: `API_URL` (the Render URL), `INTERNAL_API_SECRET` (copied from Render), `DEMO_SITE=1`. The sign-in key is derived from that secret unless `AUTH_SECRET` is set. |
+| Website | [Vercel](https://vercel.com) | Import this repo, Root Directory `frontend`. Environment: `API_URL` (the Render URL), `INTERNAL_API_SECRET` (copied from Render), optional `CONTACT_EMAIL` (shown on the privacy page). The sign-in key is derived from that secret unless `AUTH_SECRET` is set. |
+
+API settings for real users (all optional):
+
+| Variable | What it does |
+|---|---|
+| `SIGNUP_MODE` | `invite` (default): new accounts need an invite code, except the very first. `open`: anyone. `closed`: nobody new. |
+| `OWNER_EMAILS` | Comma-separated emails that see the **Owner** page (stats, invite codes, feedback). Default: the first account created. |
+| `MAIL_FROM` + `BREVO_API_KEY` | Sends confirm-email and password-reset emails through Brevo's free HTTP API (no domain needed). `RESEND_API_KEY` or `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` also work, but Render's free plan blocks SMTP ports. Without email, sign-up skips confirmation and password reset is off. |
+| `APP_URL` | The website address, used in email links (e.g. `https://money-map-ruddy.vercel.app`). |
+
+A GitHub Actions job (`.github/workflows/keep-alive.yml`) pings the API every 14 minutes during waking hours so it doesn't fall asleep.
 
 Notes: Render's free API sleeps after 15 minutes without visits, so the first request can take up to a minute. Uploads through Vercel are limited to about 4.5 MB per request. Tables are created on first start; `TEST_DATABASE_URL=postgresql+psycopg://... pytest` runs the test suite against Postgres.
 

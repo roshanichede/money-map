@@ -45,7 +45,9 @@ def _add_missing_columns(bind) -> None:
     from sqlalchemy import text
 
     added = {"accounts": [("currency", "VARCHAR(3) NOT NULL DEFAULT 'GBP'")],
-             "transactions": [("pending", "BOOLEAN NOT NULL DEFAULT FALSE")]}
+             "transactions": [("pending", "BOOLEAN NOT NULL DEFAULT FALSE")],
+             "users": [("last_seen", "TIMESTAMP")],
+             "credentials": [("verified", "BOOLEAN NOT NULL DEFAULT TRUE")]}
     insp = inspect(bind)
     for table, columns in added.items():
         if table not in insp.get_table_names():

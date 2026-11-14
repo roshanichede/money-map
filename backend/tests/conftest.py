@@ -75,3 +75,11 @@ def everything(client):
     r = client.post("/api/demo")
     assert r.status_code == 200, r.text
     return client
+
+
+@pytest.fixture(autouse=True)
+def _open_signup(monkeypatch):
+    """Most tests create users freely; tests of invite-only sign-up switch this off themselves."""
+    monkeypatch.setenv("SIGNUP_MODE", "open")
+    for k in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "MAIL_FROM", "OWNER_EMAILS", "BREVO_API_KEY", "RESEND_API_KEY"):
+        monkeypatch.delenv(k, raising=False)

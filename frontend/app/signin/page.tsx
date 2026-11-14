@@ -18,10 +18,10 @@ const EXAMPLES = [
   { raw: "FPI J SMITH CAB SPLIT ••5749", name: "J Smith paid you back", category: "Transport", amount: "+£12.00" },
 ];
 
-export default async function SignIn({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+export default async function SignIn({ searchParams }: { searchParams: Promise<{ mode?: string; invite?: string }> }) {
   if (!loginEnabled || (await currentUser())) redirect("/");
-  const { mode } = await searchParams;
-  const demo = process.env.DEMO_SITE === "1";
+  const { mode, invite } = await searchParams;
+  const code = (invite ?? "").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20);
   return (
     <main className="auth">
       <section className="auth-story" aria-label="What MoneyMap does">
@@ -51,7 +51,7 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
       <section className="auth-panel">
         <div className="auth-panel-inner">
           <div className="auth-brand auth-brand-small"><Mark />MoneyMap</div>
-          <AuthForms googleEnabled={googleEnabled} startWith={mode === "signup" ? "signup" : "signin"} demo={demo} />
+          <AuthForms googleEnabled={googleEnabled} startWith={mode === "signup" || code ? "signup" : "signin"} invite={code} />
         </div>
       </section>
     </main>

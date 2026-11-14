@@ -25,6 +25,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True)
     name: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # for "weekly active" counts
 
 
 class Account(Base):
@@ -136,6 +137,7 @@ class Credential(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    verified: Mapped[bool] = mapped_column(Boolean, default=True)  # email confirmed (when email sending is set up)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
@@ -154,3 +156,29 @@ class CaptureKey(Base):
     last_used: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     uses: Mapped[int] = mapped_column(Integer, default=0)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class InviteCode(Base):
+    """Sign-up is invite-only by default: the owner hands out codes (each with a use limit)."""
+
+    __tablename__ = "invite_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(40), unique=True)
+    note: Mapped[str] = mapped_column(String(120), default="")  # e.g. "Leicester Indian Society"
+    max_uses: Mapped[int] = mapped_column(Integer, default=1)
+    uses: Mapped[int] = mapped_column(Integer, default=0)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class Feedback(Base):
+    """What people tell you from the app. Their email is kept only if they said you may reply."""
+
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    text: Mapped[str] = mapped_column(Text)
+    page: Mapped[str] = mapped_column(String(40), default="")
+    reply_to: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

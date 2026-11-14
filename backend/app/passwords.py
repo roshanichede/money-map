@@ -44,5 +44,15 @@ class Throttle:
     def clear(self, key: str) -> None:
         self.fails.pop(key, None)
 
+    def allow_mail(self, key: str) -> bool:
+        """At most 3 emails (confirmation or reset) per address per 15 minutes."""
+        q = self.fails[f"mail:{key}"]
+        while q and q[0] < time.monotonic() - self.window:
+            q.popleft()
+        if len(q) >= 3:
+            return False
+        q.append(time.monotonic())
+        return True
+
 
 throttle = Throttle()

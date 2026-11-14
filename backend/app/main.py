@@ -1,5 +1,6 @@
 """MoneyMap API. Every route works on the signed-in user's data only (see auth.py)."""
 import calendar
+import re
 from datetime import date
 import csv
 import io
@@ -16,7 +17,8 @@ from sqlalchemy.orm import Session
 
 from . import chat
 from .accounts import TYPE_LABELS
-from .auth import current_user, find_or_create, internal_only, login_mode
+from . import links, mailer
+from .auth import current_user, find_or_create, internal_only, is_owner, login_mode, owner_only
 from .passwords import MIN_LENGTH, check_password, hash_password, throttle
 from .categories import CATEGORIES
 from .db import get_session, init_db
@@ -25,7 +27,7 @@ from .insights import (all_transactions, by_category, by_merchant, categorised_r
                        highlights, in_month, months_overview, totals, txn_dict)
 from . import capture, learning, teach
 from .money import CURRENCIES, set_currency
-from .models import ACCOUNT_TYPES, Account, CaptureKey, Credential, Dismissed, MerchantRule, Rule, Transaction, Upload, User
+from .models import ACCOUNT_TYPES, Account, CaptureKey, Credential, Dismissed, Feedback, InviteCode, MerchantRule, Rule, Transaction, Upload, User
 from .parsers import ParseError
 from .recurring import detect_recurring
 from .transfers import link_transfers, unlink_account
@@ -86,9 +88,108 @@ def health():
 
 
 @app.get("/api/me")
-def me(user: User = Depends(current_user)):
+def me(user: User = Depends(current_user), session: Session = Depends(get_session)):
     return {"email": None if user.email == "local@moneymap" else user.email, "name": user.name,
-            "login_mode": login_mode()}
+            "login_mode": login_mode(), "is_owner": is_owner(session, user)}
+
+
+class DeleteAccount(BaseModel):
+    confirm: str
+
+
+@app.delete("/api/me")
+def delete_me(body: DeleteAccount, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    """Deletes everything: transactions, accounts, rules, phone links, and the login itself."""
+    if body.confirm != "DELETE":
+        raise HTTPException(400, 'Type DELETE to confirm.')
+    if not login_mode():
+        raise HTTPException(400, "There's no account to delete in local mode; use “Delete all my data”.")
+    for model in (Transaction, MerchantRule, Rule, Dismissed, Upload, CaptureKey, Account, Credential):
+        session.execute(delete(model).where(model.user_id == user.id))
+    session.execute(delete(User).where(User.id == user.id))
+    session.commit()
+    return {"deleted": True}
+
+
+# ---------- feedback, and the owner's view (counts only, never anyone's transactions) ----------
+
+class FeedbackBody(BaseModel):
+    text: str
+    page: str = ""
+    can_reply: bool = False
+
+
+@app.post("/api/feedback")
+def send_feedback(body: FeedbackBody, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(400, "Write something first.")
+    session.add(Feedback(text=text[:4000], page=body.page[:40],
+                         reply_to=user.email if body.can_reply and user.email != "local@moneymap" else ""))
+    session.commit()
+    return {"ok": True}
+
+
+@app.get("/api/owner/stats")
+def owner_stats(_: User = Depends(owner_only), session: Session = Depends(get_session)):
+    from datetime import datetime, timedelta, timezone as tz
+    now = datetime.now(tz.utc).replace(tzinfo=None)
+    week, month = now - timedelta(days=7), now - timedelta(days=30)
+    count = lambda q: session.scalar(q) or 0  # noqa: E731
+    real = User.email != "local@moneymap"
+    return {
+        "users": count(select(func.count()).select_from(User).where(real)),
+        "new_this_week": count(select(func.count()).select_from(User).where(real, User.created_at >= week)),
+        "active_this_week": count(select(func.count()).select_from(User).where(real, User.last_seen >= week)),
+        "active_this_month": count(select(func.count()).select_from(User).where(real, User.last_seen >= month)),
+        "users_with_statements": count(select(func.count(func.distinct(Upload.user_id))).where(Upload.source_format != "live")),
+        "statements_uploaded": count(select(func.count()).select_from(Upload).where(Upload.source_format != "live")),
+        "phone_links_in_use": count(select(func.count()).select_from(CaptureKey).where(CaptureKey.revoked.is_(False), CaptureKey.uses > 0)),
+        "rules_taught": count(select(func.count()).select_from(Rule)),
+        "accounts_by_currency": dict(session.execute(select(Account.currency, func.count()).group_by(Account.currency)).all()),
+        "signup_mode": os.environ.get("SIGNUP_MODE", "invite"),
+        "email_set_up": mailer.configured(),
+    }
+
+
+class NewInvite(BaseModel):
+    note: str = ""
+    max_uses: int = 1
+
+
+@app.get("/api/owner/invites")
+def owner_invites(_: User = Depends(owner_only), session: Session = Depends(get_session)):
+    rows = session.scalars(select(InviteCode).where(InviteCode.revoked.is_(False)).order_by(InviteCode.created_at.desc()))
+    return [{"id": i.id, "code": i.code, "note": i.note, "uses": i.uses, "max_uses": i.max_uses,
+             "created_at": i.created_at.isoformat()} for i in rows]
+
+
+@app.post("/api/owner/invites")
+def create_invite(body: NewInvite, _: User = Depends(owner_only), session: Session = Depends(get_session)):
+    import secrets as _secrets
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O or 1/I to misread
+    code = "-".join("".join(_secrets.choice(alphabet) for _ in range(4)) for _ in range(2))
+    inv = InviteCode(code=code, note=body.note.strip()[:120], max_uses=max(1, min(body.max_uses, 500)))
+    session.add(inv)
+    session.commit()
+    return {"id": inv.id, "code": inv.code, "note": inv.note, "uses": 0, "max_uses": inv.max_uses,
+            "created_at": inv.created_at.isoformat()}
+
+
+@app.delete("/api/owner/invites/{invite_id}")
+def revoke_invite(invite_id: int, _: User = Depends(owner_only), session: Session = Depends(get_session)):
+    inv = session.get(InviteCode, invite_id)
+    if inv:
+        inv.revoked = True
+        session.commit()
+    return {"ok": True}
+
+
+@app.get("/api/owner/feedback")
+def owner_feedback(_: User = Depends(owner_only), session: Session = Depends(get_session)):
+    rows = session.scalars(select(Feedback).order_by(Feedback.created_at.desc()).limit(200))
+    return [{"id": f.id, "text": f.text, "page": f.page, "reply_to": f.reply_to,
+             "created_at": f.created_at.isoformat()} for f in rows]
 
 
 # ---------- email + password accounts (called by the Next.js server only) ----------
@@ -97,6 +198,8 @@ class SignUp(BaseModel):
     email: str
     password: str
     name: str = ""
+    invite: str = ""
+    origin: str = ""  # the website's address, for the link in the confirmation email
 
 
 class SignIn(BaseModel):
@@ -124,10 +227,118 @@ def signup(body: SignUp, session: Session = Depends(get_session)):
         raise HTTPException(409, "There's already an account with this email. Sign in instead."
                             if has_password else
                             "This email already signs in with Google. Use “Continue with Google”.")
+    invite = _check_invite(session, body.invite)
     user = find_or_create(session, email, body.name.strip()[:255] or email.split("@")[0])
-    session.add(Credential(user_id=user.id, password_hash=hash_password(body.password)))
+    needs_confirming = mailer.configured()
+    session.add(Credential(user_id=user.id, password_hash=hash_password(body.password), verified=not needs_confirming))
+    if invite is not None:
+        invite.uses += 1
     session.commit()
-    return {"email": user.email, "name": user.name}
+    if needs_confirming:
+        link = f"{_origin(body.origin)}/verify?token={links.make('verify', email)}"
+        mailer.send(email, "Confirm your MoneyMap account",
+                    f"Hi {user.name},\n\nConfirm your email to start using MoneyMap:\n{link}\n\n"
+                    "The link works for 24 hours. If you didn't sign up, ignore this email.")
+    return {"email": user.email, "name": user.name, "needs_confirming": needs_confirming}
+
+
+def _origin(origin: str) -> str:
+    origin = origin.strip().rstrip("/")
+    return origin if re.match(r"^https?://[\w.:-]+$", origin) else os.environ.get("APP_URL", "http://localhost:3000")
+
+
+def _check_invite(session: Session, code: str):
+    """Invite-only unless SIGNUP_MODE=open. The very first account (yours) needs no code."""
+    mode = os.environ.get("SIGNUP_MODE", "invite")
+    if mode == "closed":
+        raise HTTPException(403, "Sign-up is closed for now.")
+    if mode == "open":
+        return None
+    has_accounts = session.scalar(select(func.count()).select_from(Credential))
+    if not has_accounts:
+        return None
+    clean = code.strip().upper()
+    inv = session.scalar(select(InviteCode).where(InviteCode.code == clean)) if clean else None
+    if inv is None or inv.revoked or inv.uses >= inv.max_uses:
+        raise HTTPException(403, "MoneyMap is invite-only for now. Enter a valid invite code."
+                            if not clean else "That invite code isn't valid or has been used up.")
+    return inv
+
+
+class TokenBody(BaseModel):
+    token: str
+    password: str = ""
+
+
+class EmailBody(BaseModel):
+    email: str
+    origin: str = ""
+
+
+@app.post("/api/account/verify", dependencies=[Depends(internal_only)])
+def verify_email(body: TokenBody, session: Session = Depends(get_session)):
+    email = links.read(body.token, "verify")
+    user = email and session.scalar(select(User).where(User.email == email))
+    cred = user and session.scalar(select(Credential).where(Credential.user_id == user.id))
+    if not cred:
+        raise HTTPException(400, "That link has expired or isn't valid. Sign in to get a new one.")
+    cred.verified = True
+    session.commit()
+    return {"email": email}
+
+
+@app.post("/api/account/resend", dependencies=[Depends(internal_only)])
+def resend_confirmation(body: EmailBody, session: Session = Depends(get_session)):
+    email = body.email.strip().lower()
+    user = session.scalar(select(User).where(User.email == email))
+    cred = user and session.scalar(select(Credential).where(Credential.user_id == user.id))
+    if cred and not cred.verified and throttle.allow_mail(email):
+        mailer.send(email, "Confirm your MoneyMap account",
+                    f"Confirm your email to start using MoneyMap:\n"
+                    f"{_origin(body.origin)}/verify?token={links.make('verify', email)}\n\nThe link works for 24 hours.")
+    return {"ok": True}
+
+
+def _reset_extra(session: Session):
+    def extra(email: str) -> str:
+        user = session.scalar(select(User).where(User.email == email))
+        cred = user and session.scalar(select(Credential).where(Credential.user_id == user.id))
+        return cred.password_hash[-16:] if cred else "none"
+    return extra
+
+
+@app.post("/api/account/forgot", dependencies=[Depends(internal_only)])
+def forgot_password(body: EmailBody, session: Session = Depends(get_session)):
+    """Always answers the same way, so it can't be used to find out who has an account."""
+    if not mailer.configured():
+        raise HTTPException(503, "Password reset isn't available yet. Use the feedback button once signed in, "
+                                 "or contact the person who invited you.")
+    email = body.email.strip().lower()
+    user = session.scalar(select(User).where(User.email == email))
+    cred = user and session.scalar(select(Credential).where(Credential.user_id == user.id))
+    if cred and throttle.allow_mail(email):
+        token = links.make("reset", email, extra=_reset_extra(session)(email), hours=1)
+        mailer.send(email, "Reset your MoneyMap password",
+                    f"Someone asked to reset the password for this MoneyMap account.\n\n"
+                    f"Choose a new password here (the link works for 1 hour, once):\n"
+                    f"{_origin(body.origin)}/reset?token={token}\n\nIf this wasn't you, ignore this email.")
+    return {"ok": True}
+
+
+@app.post("/api/account/reset", dependencies=[Depends(internal_only)])
+def reset_password(body: TokenBody, session: Session = Depends(get_session)):
+    email = links.read(body.token, "reset", extra_for=_reset_extra(session))
+    if not email:
+        raise HTTPException(400, "That reset link has expired or was already used. Ask for a new one.")
+    if len(body.password) < MIN_LENGTH:
+        raise HTTPException(400, f"Use at least {MIN_LENGTH} characters for your password.")
+    user = session.scalar(select(User).where(User.email == email))
+    cred = session.scalar(select(Credential).where(Credential.user_id == user.id))
+    cred.password_hash = hash_password(body.password)
+    cred.verified = True  # they proved they own the inbox
+    session.commit()
+    throttle.clear(email)
+    return {"email": email}
 
 
 @app.post("/api/account/signin", dependencies=[Depends(internal_only)])
@@ -140,6 +351,8 @@ def signin(body: SignIn, session: Session = Depends(get_session)):
     if not cred or not check_password(body.password, cred.password_hash):
         throttle.fail(email)
         raise HTTPException(401, "That email and password don't match.")
+    if not cred.verified:
+        raise HTTPException(403, "Confirm your email first: we sent you a link when you signed up.")
     throttle.clear(email)
     return {"email": user.email, "name": user.name}
 

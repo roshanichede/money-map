@@ -37,6 +37,7 @@ async function forward(req: Request, ctx: { params: Promise<{ path: string[] }> 
     headers.set("x-internal-secret", secret);
     headers.set("x-user-email", user.email);
     headers.set("x-user-name", encodeURIComponent(user.name));
+    headers.set("x-user-provider", user.provider);
   }
 
   const search = new URL(req.url).search;
