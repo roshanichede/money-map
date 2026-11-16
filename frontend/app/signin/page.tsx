@@ -2,8 +2,9 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
-import { currentUser, googleEnabled, loginEnabled } from "@/auth";
+import { currentUser, googleEnabled, loginEnabled, wakeApi } from "@/auth";
 import { AuthForms } from "@/components/AuthForms";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { Mark } from "@/components/icons";
@@ -20,6 +21,7 @@ const EXAMPLES = [
 
 export default async function SignIn({ searchParams }: { searchParams: Promise<{ mode?: string; invite?: string }> }) {
   if (!loginEnabled || (await currentUser())) redirect("/");
+  after(wakeApi); // starts waking the API while the person types
   const { mode, invite } = await searchParams;
   const code = (invite ?? "").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 20);
   return (

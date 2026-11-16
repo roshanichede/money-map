@@ -25,6 +25,11 @@ export const googleEnabled = loginEnabled && Boolean(process.env.AUTH_GOOGLE_ID 
 
 const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
+/** Nudge the API awake (the free server sleeps when idle) so it's ready by the time someone presses Sign in. */
+export function wakeApi() {
+  return fetch(`${API_URL}/api/health`, { cache: "no-store", signal: AbortSignal.timeout(55_000) }).catch(() => undefined);
+}
+
 /** Server-to-server call to the backend's account endpoints, which only accept the shared secret. */
 export async function accountCall(path: "signin" | "signup" | "verify" | "resend" | "forgot" | "reset",
                                   body: Record<string, string>) {

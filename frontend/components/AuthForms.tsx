@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import Link from "next/link";
 
@@ -19,6 +19,17 @@ function GoogleG() {
   );
 }
 
+/** After a few seconds of waiting, say why: the free server may be starting up. */
+function useSlow(pending: boolean) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => setSlow(true), 4000);
+    return () => { clearTimeout(t); setSlow(false); };
+  }, [pending]);
+  return pending && slow;
+}
+
 function Resend({ email }: { email: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(resendConfirmation, {});
   if (state.notice) return <p className="auth-notice" role="status">{state.notice}</p>;
@@ -32,6 +43,7 @@ function Resend({ email }: { email: string }) {
 
 function SignInForm() {
   const [state, action, pending] = useActionState<FormState, FormData>(signInWithPassword, {});
+  const slow = useSlow(pending);
   return (
     <>
       <form action={action} className="auth-form" noValidate>
@@ -42,6 +54,7 @@ function SignInForm() {
         </label>
         {state.error && <p className="auth-error" role="alert">{state.error}</p>}
         <button className="btn btn-primary auth-submit" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</button>
+        {slow && <p className="muted small" role="status" style={{ margin: 0 }}>Waking the server up. The first sign-in after a quiet spell can take up to a minute.</p>}
       </form>
       {state.unconfirmed && state.email && <div style={{ marginTop: 10 }}><Resend email={state.email} /></div>}
     </>
