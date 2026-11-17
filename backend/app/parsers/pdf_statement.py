@@ -112,6 +112,20 @@ def _nearest(x1: float, cols: Columns) -> str:
     return min(options, key=lambda k: abs(options[k] - x1))
 
 
+def _visible(obj) -> bool:
+    """Drop text a reader never sees. Some statements (Lloyds' accessible PDFs) hide screen-reader labels such as
+    "Date", "Column" and "blank" inside every cell as 0.1pt white text, which would otherwise mangle each row."""
+    if obj.get("object_type") != "char":
+        return True
+    if obj.get("size", 10) < 2:
+        return False
+    colour = obj.get("non_stroking_color")
+    if isinstance(colour, (tuple, list)) and len(colour) in (1, 3) and all(
+            isinstance(c, (int, float)) and c >= 0.97 for c in colour):
+        return False  # white on white
+    return True
+
+
 def parse_pdf(content: bytes) -> ParseResult:
     try:
         pdf = pdfplumber.open(io.BytesIO(content))
@@ -123,14 +137,15 @@ def parse_pdf(content: bytes) -> ParseResult:
     opening: int | None = None
     warnings: list[str] = []
     with pdf:
-        if not any((p.extract_text() or "").strip() for p in pdf.pages):
-            raise ParseError("This PDF has no readable text (it may be a scan).")
-        first_page = pdf.pages[0].extract_text() or ""
+        pages = [p.filter(_visible) for p in pdf.pages]
+        if not any((p.extract_text() or "").strip() for p in pages):
+            raise ParseError("This PDF has no readable text (it may be a scan or a photo of a statement).")
+        first_page = pages[0].extract_text() or ""
         account_match = ACCOUNT_NO_RE.search(first_page)
         bank = guess_bank(first_page)
         current_date = None
         last_line_bottom = None
-        for page in pdf.pages:
+        for page in pages:
             cols: Columns | None = None
             for line in _lines(page):
                 if cols is None:
@@ -207,7 +222,8 @@ def parse_pdf(content: bytes) -> ParseResult:
                 last_line_bottom = line[0]["bottom"]
 
     if not txns:
-        raise ParseError("No transactions found. Is this a bank statement with a Balance column?")
+        raise ParseError("Couldn't find a transactions table in this PDF. If your bank offers a CSV or Excel "
+                         "download of the same months, upload that instead, and send feedback so we can add this layout.")
 
     # Single unsigned amount column: take the sign from the running balance.
     prev_bal = opening
