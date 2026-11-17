@@ -198,6 +198,7 @@ export type Question = {
   largest_pence: number;
   question: string;
   examples: { date: string; description: string; amount_pence: number }[];
+  payments: { id: number; date: string; description: string; amount_pence: number }[];
   alternatives: { label: string; spec: RuleSpec }[];
 };
 
@@ -299,6 +300,8 @@ export const api = {
     request<{ rule: string; moved: number }>("/api/rules", { method: "POST", ...json({ spec, category, taught_via: taughtVia }) }),
   deleteRule: (id: string) => request<{ moved: number }>(`/api/rules/${id}`, { method: "DELETE" }),
   questions: () => request<{ total: number; items: Question[] }>("/api/questions"),
+  categorise: (ids: number[], category: string) =>
+    request<{ updated: number }>("/api/transactions/categorise", { method: "POST", ...json({ ids, category }) }),
   dismissQuestion: (key: string) => request<{ ok: boolean }>("/api/questions/dismiss", { method: "POST", ...json({ key }) }),
   captureLinks: () => request<CaptureLink[]>("/api/capture-links"),
   createCaptureLink: (accountId: number, source: "applepay" | "sms") =>

@@ -332,16 +332,18 @@ def questions(session: Session, user_id: int, limit: int = 6) -> dict:
             continue
         g = groups.setdefault(key, {"key": key, "direction": direction, "name": name, "word": nice(word),
                                     "spec": spec.__dict__, "count": 0, "total_pence": 0, "amounts": [],
-                                    "examples": []})
+                                    "examples": [], "payments": []})
         g["count"] += 1
         g["total_pence"] += abs(t.amount_pence)
         g["amounts"].append(abs(t.amount_pence))
-        g["examples"].append({"date": t.date.isoformat(), "description": t.description,
-                              "amount_pence": t.amount_pence})
+        row = {"date": t.date.isoformat(), "description": t.description, "amount_pence": t.amount_pence}
+        g["examples"].append(row)
+        g["payments"].append({"id": t.id, **row})  # every payment, for "they're for different things"
     out = []
     for g in sorted(groups.values(), key=lambda g: -g["total_pence"]):
         amounts = sorted(g.pop("amounts"))
         g["examples"] = g["examples"][-3:]
+        g["payments"] = sorted(g["payments"], key=lambda p: p["date"], reverse=True)[:100]
         g["largest_pence"] = amounts[-1]
         if g["direction"] == "out":
             ask = f"What are your payments to {g['name']} for?"

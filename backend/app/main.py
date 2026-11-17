@@ -544,6 +544,25 @@ class CategoryUpdate(BaseModel):
     apply_to_merchant: bool = True  # the app sends False and then offers the ways to apply it more widely
 
 
+class BulkCategory(BaseModel):
+    ids: list[int]
+    category: str
+
+
+@app.post("/api/transactions/categorise")
+def set_categories(body: BulkCategory, user: User = Depends(current_user), session: Session = Depends(get_session)):
+    """Sort a hand-picked set of payments, without making a rule: e.g. the ten Diwali payments to one friend,
+    when the rest of what you pay them is for something else."""
+    if body.category not in CATEGORIES:
+        raise HTTPException(400, f"Unknown category. Use one of: {', '.join(CATEGORIES)}")
+    ids = list(dict.fromkeys(body.ids))[:500]
+    rows = list(session.scalars(select(Transaction).where(Transaction.user_id == user.id, Transaction.id.in_(ids))))
+    for t in rows:
+        t.category, t.category_source = body.category, "manual"
+    session.commit()
+    return {"updated": len(rows)}
+
+
 @app.patch("/api/transactions/{txn_id}")
 def set_category(txn_id: int, body: CategoryUpdate, user: User = Depends(current_user),
                  session: Session = Depends(get_session)):

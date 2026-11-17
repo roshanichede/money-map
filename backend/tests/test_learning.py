@@ -161,3 +161,22 @@ def test_chat_unknown_name_gets_suggestions(client):
     _load(client)
     r = _ask(client, "Jayne Roy is groceries")
     assert r["proposal"] is None and "Jane Roy" in r["answer"]
+
+
+def test_payments_to_one_person_for_different_things(client):
+    """Ten Diwali payments to a friend and the usual lunch money: sort a picked set without a rule."""
+    from conftest import upload
+    rows = ["Date,Description,Amount"]
+    rows += [f"2026-10-{d:02d},FPO PRIYA SHAH,-{20 + d}.00" for d in range(1, 11)]
+    rows += [f"2026-10-{d:02d},FPO PRIYA SHAH,-6.50" for d in range(15, 20)]
+    client.post("/api/upload", files=[("files", ("p.csv", "\n".join(rows).encode()))])
+    q = next(q for q in client.get("/api/questions").json()["items"] if "PRIYA" in q["name"].upper())
+    assert len(q["payments"]) == 15
+    diwali = [p["id"] for p in q["payments"] if p["amount_pence"] != -650]
+    r = client.post("/api/transactions/categorise", json={"ids": diwali, "category": "Gifts & charity"}).json()
+    assert r["updated"] == 10
+    q = next(q for q in client.get("/api/questions").json()["items"] if "PRIYA" in q["name"].upper())
+    assert q["count"] == 5  # only the lunch money is still asked about
+    cats = {t["category"] for t in client.get("/api/transactions", params={"q": "priya"}).json() if t["amount_pence"] != -650}
+    assert cats == {"Gifts & charity"}
+    assert client.post("/api/transactions/categorise", json={"ids": diwali, "category": "Nope"}).status_code == 400

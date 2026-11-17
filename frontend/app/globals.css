@@ -518,3 +518,10 @@ form.auth-form { display: grid; gap: 14px; }
 .stat span { color: var(--muted); font-size: 13px; }
 .invite-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; letter-spacing: 0.04em; }
 .danger-zone { border-color: color-mix(in srgb, var(--bad) 35%, var(--line)); }
+.learn-split-tools { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+.learn-pick { max-height: 320px; overflow-y: auto; }
+.learn-pick label { display: contents; cursor: pointer; }
+.learn-pick li { cursor: pointer; }
+.learn-pick li { grid-template-columns: 18px 56px minmax(0, 1fr) auto; align-items: center; }
+.learn-pick li span:nth-child(2) { overflow: visible; white-space: nowrap; }
+.learn-pick li span:nth-child(3) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
