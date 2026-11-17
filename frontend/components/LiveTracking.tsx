@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { track } from "@/lib/analytics";
 import { api, type Account, type CaptureLink } from "@/lib/api";
 import { shortDate } from "@/lib/format";
 import { Check } from "./icons";
@@ -58,6 +59,7 @@ function NewLink({ source, accounts, onCreated }: { source: Source; accounts: Ac
     setBusy(true);
     try {
       const r = await api.createCaptureLink(accountId, source);
+      track("live_link_created", { source });
       setLink(`${window.location.origin}${r.path}`);
       setCopied(false);
       setChecked(null);

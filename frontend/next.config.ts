@@ -21,6 +21,15 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // Analytics go through our own domain to PostHog's EU cloud (see lib/analytics.ts).
+  skipTrailingSlashRedirect: true,
+  async rewrites() {
+    return [
+      { source: "/ingest/static/:path*", destination: "https://eu-assets.i.posthog.com/static/:path*" },
+      { source: "/ingest/array/:path*", destination: "https://eu-assets.i.posthog.com/array/:path*" },
+      { source: "/ingest/:path*", destination: "https://eu.i.posthog.com/:path*" },
+    ];
+  },
   async headers() {
     return [
       {

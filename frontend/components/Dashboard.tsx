@@ -19,6 +19,7 @@ import { RecurringList } from "./RecurringList";
 import { Sidebar, VIEWS, type View } from "./Sidebar";
 import { Transactions } from "./Transactions";
 import { UploadDialog, Welcome } from "./UploadDialog";
+import { identify, track } from "@/lib/analytics";
 import { FeedbackDialog } from "./Feedback";
 import { Owner } from "./Owner";
 import { YourData } from "./YourData";
@@ -52,13 +53,14 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
   const [uploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  useEffect(() => { if (user?.email) void identify(user.email); }, [user?.email]);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   useEffect(() => { if (loginEnabled) api.me().then((m) => setIsOwner(Boolean(m.is_owner))).catch(() => {}); }, [loginEnabled]);
   const [error, setError] = useState<string | null>(null);
 
   // ----- routing by hash, so back/forward and links work -----
   useEffect(() => {
-    const sync = () => setView(readView());
+    const sync = () => { const v = readView(); setView(v); track("view_opened", { view: v }); };
     sync();
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);

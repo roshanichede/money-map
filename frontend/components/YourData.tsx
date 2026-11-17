@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { signOutAction } from "@/app/actions";
+import { analyticsOn, setAnalytics, track } from "@/lib/analytics";
 import { api, type ImportRow, type RuleRow } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { Check, Dash, Warn } from "./icons";
@@ -19,12 +20,14 @@ export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted,
   const [rules, setRules] = useState<RuleRow[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [stats, setStats] = useState(analyticsOn);
   const [typed, setTyped] = useState("");
   const [closeError, setCloseError] = useState<string | null>(null);
 
   async function deleteAccount() {
     setCloseError(null);
     try {
+      track("account_deleted");
       await api.deleteMe();
       await signOutAction();
     } catch (e) {
@@ -42,6 +45,7 @@ export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted,
 
   async function remove() {
     await api.deleteAll();
+    track("data_deleted");
     setConfirming(false);
     onDeleted();
   }
@@ -116,6 +120,10 @@ export function YourData({ refreshKey, categorisedRate, loginEnabled, onDeleted,
             )}
           </div>
           {confirming && <p className="muted small" style={{ margin: "10px 0 0" }}>This removes every account, transaction and everything MoneyMap has learned. It can&apos;t be undone.</p>}
+          <label className="check-row" style={{ marginTop: 14 }}>
+            <input type="checkbox" checked={stats} onChange={(e) => { setStats(e.target.checked); setAnalytics(e.target.checked); }} />
+            <span>Share anonymous usage stats (which screens are used, never amounts or payees) to help improve MoneyMap</span>
+          </label>
         </section>
         {loginEnabled && (
           <section className="card danger-zone" aria-labelledby="close-h">

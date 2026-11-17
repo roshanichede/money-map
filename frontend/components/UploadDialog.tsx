@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { track } from "@/lib/analytics";
 import { api, type Account, type AccountType, type UploadResult, type UploadTarget } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { Check, Dash, IconClose, IconUpload, Warn } from "./icons";
@@ -99,10 +100,12 @@ function useUploadQueue(target: () => UploadTarget, onFileDone: (r: UploadResult
       try {
         const res = (await api.upload([next.file], targetRef.current())).results[0];
         if (res.ok) {
+          track("statements_uploaded", { kind: next.file.name.split(".").pop()?.toLowerCase() ?? "" });
           update(next.id, { status: "done", result: res });
           doneRef.current.onFileDone(res);
           didAny = true;
         } else {
+          track("upload_failed", { kind: next.file.name.split(".").pop()?.toLowerCase() ?? "" });
           update(next.id, { status: "failed", error: res.error ?? "Couldn't read this file." });
         }
       } catch (e) {
@@ -308,7 +311,7 @@ export function Welcome({ onImported }: { onImported: () => void }) {
         <DropZone onFiles={(f) => f.length && queue.add(f)} busy={queue.busy} />
         <QueueList items={queue.items} onRetry={queue.retry} onRemove={queue.remove} />
         <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
-          <button className="btn-link" onClick={() => run(() => api.demo())} disabled={busy}>
+          <button className="btn-link" onClick={() => run(() => { track("sample_data_loaded"); return api.demo(); })} disabled={busy}>
             {busy ? "Loading sample data…" : "Not ready to upload? Look around with sample data first"}
           </button>
         </div>

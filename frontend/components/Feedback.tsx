@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { track } from "@/lib/analytics";
 import { api } from "@/lib/api";
 import { IconClose } from "./icons";
 
@@ -29,6 +30,7 @@ export function FeedbackDialog({ open, onClose, page, onSent, canReplyDefault }:
     setError(null);
     try {
       await api.feedback(text.trim(), page, canReply);
+      track("feedback_sent");
       setText("");
       onSent();
       onClose();

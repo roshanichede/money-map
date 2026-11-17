@@ -5,7 +5,7 @@ export const metadata = { title: "Privacy · MoneyMap" };
 
 export default function Privacy() {
   return (
-    <LegalPage title="Privacy notice" updated="14 November 2026">
+    <LegalPage title="Privacy notice" updated="17 November 2026">
       <p>
         MoneyMap reads the bank statements you upload and shows you where your money went. This page explains, in plain
         English, what that means for your data. The short version: we keep only what the app needs to work, we never sell
@@ -24,6 +24,7 @@ export default function Privacy() {
         <li><b>Live tracking, if you set it up:</b> the merchant and amount your phone sends for each payment.</li>
         <li><b>Feedback you send</b>, and your email with it only if you tick “you can reply to me”.</li>
         <li><b>Basic usage:</b> when you last used the app, so we can count active users. No tracking across other websites.</li>
+        <li><b>Anonymous usage stats:</b> which screens and features are used (for example “opened Regular payments”, “uploaded a PDF”), sent to PostHog in the EU. Never amounts, payee names or your email: you&apos;re identified only by a scrambled code. No cookies, no screen recordings. Switch it off in <b>Your data</b>.</li>
       </ul>
 
       <h2>What we don&apos;t keep</h2>
@@ -46,6 +47,7 @@ export default function Privacy() {
         <li><b>Render</b> runs the server that reads your statements (Frankfurt, EU).</li>
         <li><b>Neon</b> hosts the database (Frankfurt, EU).</li>
         <li><b>Anthropic</b> powers the “Ask” chat. It is sent calculated facts (totals, merchant names, dates) to answer your question, never your statement files or account numbers.</li>
+        <li><b>PostHog</b> (EU) counts anonymous feature usage, as described above.</li>
         <li><b>Google</b>, only if you choose “Continue with Google”, and our email provider, to send sign-up and password emails.</li>
       </ul>
       <p>Some of these companies are based in the US; transfers are covered by the UK&apos;s adequacy arrangements or standard contractual clauses.</p>
