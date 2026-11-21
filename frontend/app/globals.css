@@ -525,3 +525,17 @@ form.auth-form { display: grid; gap: 14px; }
 .learn-pick li { grid-template-columns: 18px 56px minmax(0, 1fr) auto; align-items: center; }
 .learn-pick li span:nth-child(2) { overflow: visible; white-space: nowrap; }
 .learn-pick li span:nth-child(3) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Tell MoneyMap: type or speak ---------- */
+.tell-bar { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.tell-bar:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.tell-icon { color: var(--accent); display: flex; }
+.tell-input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: 15px; color: var(--ink); padding: 8px 4px; }
+.tell-input::placeholder { color: var(--muted); }
+.mic { position: relative; padding-left: 10px; padding-right: 10px; }
+.mic-on { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+.mic-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--bad); animation: mic-pulse 1s ease-in-out infinite; }
+@keyframes mic-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .mic-dot { animation: none; } }
+.mic-error { color: var(--bad); }
+@media (max-width: 640px) { .tell-icon { display: none; } .tell-bar { padding-left: 8px; } }

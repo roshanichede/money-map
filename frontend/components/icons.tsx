@@ -116,3 +116,8 @@ export const IconKey = ({ size = 17 }: P) => (
     <circle cx="7" cy="12.5" r="3.5" /><path d="M9.6 10l6-6M13.5 6l2 2" />
   </svg>
 );
+export const IconMic = ({ size = 17 }: P) => (
+  <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" {...stroke}>
+    <rect x="7.5" y="2.5" width="5" height="9" rx="2.5" /><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5" />
+  </svg>
+);

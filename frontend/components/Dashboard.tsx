@@ -8,6 +8,7 @@ import { isUnfinished, monthLabel, setCurrency, SYMBOLS } from "@/lib/format";
 import { Accounts } from "./Accounts";
 import { CategoryBars } from "./CategoryBars";
 import { ChatDrawer } from "./Chat";
+import { TellBar } from "./TellBar";
 import { Highlights } from "./Highlights";
 import { LearnCard } from "./LearnCard";
 import { IconChat, IconUpload } from "./icons";
@@ -50,6 +51,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
   const [refreshKey, setRefreshKey] = useState(0);
   const [dataVersion, setDataVersion] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
+  const [said, setSaid] = useState<string | null>(null); // from the Tell bar, sent when the chat opens
   const [uploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -165,6 +167,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
   } else if (view === "overview") {
     body = summary && monthRow && summary.month === overviewMonth ? (
       <div className="stack">
+        <TellBar onSend={(t) => { setSaid(t); setChatOpen(true); }} />
         <MonthHero summary={summary} month={monthRow} partial={isUnfinished(monthRow, months)} earnings={earnings}
                    recurring={recurring} onSeeBills={() => go("regular")} />
         <LearnCard categories={categories} refreshKey={refreshKey} onTaught={(m) => { setToast(m); refresh(); }} />
@@ -245,7 +248,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
               </>
             )}
             {hasData && (
-              <button className="btn" onClick={() => setChatOpen(true)}><IconChat />Ask</button>
+              <button className="btn" onClick={() => setChatOpen(true)}><IconChat />Talk</button>
             )}
             <button className="btn btn-primary" onClick={() => setUploadOpen(true)}><IconUpload />Add statements</button>
           </div>
@@ -255,7 +258,7 @@ export function Dashboard({ user, loginEnabled }: { user: SessionUser; loginEnab
       </main>
       <ChatDrawer key={`${dataVersion}-${accountId}-${activeCurrency}`} open={chatOpen} onClose={() => setChatOpen(false)}
                   suggestions={suggestions} accountId={accountId} currency={activeCurrency} scopeLabel={accountName}
-                  onTaught={() => refresh()} />
+                  onTaught={() => refresh()} pending={said} onPendingSent={() => setSaid(null)} />
       <UploadDialog open={uploadOpen} onClose={() => setUploadOpen(false)} accounts={accounts} onImported={() => refresh(false)} />
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} page={title} canReplyDefault={false}
                       onSent={() => setToast("Thanks, your feedback was sent.")} />

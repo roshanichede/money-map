@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { api, type ChatReply, type Proposal, type RuleSpec } from "@/lib/api";
 import { money, plural, shortDate } from "@/lib/format";
-import { Check, IconClose } from "./icons";
+import { Check, IconClose, IconMic } from "./icons";
+import { useVoice } from "./useVoice";
 
 type Turn = { q: string; reply?: ChatReply; error?: string; saved?: string };
 
@@ -24,7 +25,27 @@ type Props = {
   scopeLabel: string;
   /** Called after a rule taught in the chat moved payments, so the dashboard refreshes. */
   onTaught: () => void;
+  /** Something typed or said in the "Tell MoneyMap" box: sent as soon as the drawer opens. */
+  pending?: string | null;
+  onPendingSent?: () => void;
 };
+
+/** A microphone button that fills the box with what you say (you still press Send). */
+export function MicButton({ onText, onDone }: { onText: (t: string) => void; onDone?: (t: string) => void }) {
+  const last = useRef("");
+  const voice = useVoice((t, final) => { last.current = t; onText(t); if (final) onDone?.(t); });
+  if (!voice.supported) return null;
+  return (
+    <>
+      <button type="button" className={`btn mic${voice.listening ? " mic-on" : ""}`}
+              aria-label={voice.listening ? "Stop listening" : "Speak instead of typing"} aria-pressed={voice.listening}
+              onClick={() => (voice.listening ? voice.stop() : voice.start())}>
+        <IconMic />{voice.listening && <span className="mic-dot" aria-hidden="true" />}
+      </button>
+      {voice.error && <span className="mic-error small" role="alert">{voice.error}</span>}
+    </>
+  );
+}
 
 function ProposalCard({ p, saved, onSave }: { p: Proposal; saved?: string; onSave: (spec: RuleSpec) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
@@ -53,7 +74,7 @@ function ProposalCard({ p, saved, onSave }: { p: Proposal; saved?: string; onSav
 }
 
 /** The conversation survives closing the drawer; it resets when the data or the account filter changes (via key). */
-export function ChatDrawer({ open, onClose, suggestions, accountId, currency, scopeLabel, onTaught }: Props) {
+export function ChatDrawer({ open, onClose, suggestions, accountId, currency, scopeLabel, onTaught, pending, onPendingSent }: Props) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -87,6 +108,11 @@ export function ChatDrawer({ open, onClose, suggestions, accountId, currency, sc
     }
   }
 
+  useEffect(() => {
+    if (open && pending) { onPendingSent?.(); void ask(pending); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pending]);
+
   async function saveRule(index: number, p: Proposal, spec: RuleSpec) {
     const r = await api.addRule(spec, p.category, "chat");
     const msg = `Saved: ${r.rule}. Moved ${plural(r.moved, "payment")}; new statements will follow it too. You can delete it under Your data.`;
@@ -101,8 +127,9 @@ export function ChatDrawer({ open, onClose, suggestions, accountId, currency, sc
       <aside className="drawer" role="dialog" aria-modal="true" aria-labelledby="chat-h">
         <div className="drawer-head">
           <div>
-            <h2 id="chat-h">Ask about your money</h2>
-            <p>Answers use only your statements ({scopeLabel}). You can also teach it: “payments to Preeti up to £50 are groceries”.</p>
+            <h2 id="chat-h">Talk to MoneyMap</h2>
+            <p>Ask about your money, or tell it how to sort things: “Abhishek Sharma for garba is entertainment”,
+              “payments to Preeti up to £50 are groceries”. Answers use only your statements ({scopeLabel}).</p>
           </div>
           <button className="btn btn-ghost" onClick={onClose} aria-label="Close"><IconClose /></button>
         </div>
@@ -141,9 +168,10 @@ export function ChatDrawer({ open, onClose, suggestions, accountId, currency, sc
         </div>
         <form className="chat-form" onSubmit={(e) => { e.preventDefault(); ask(text); }}>
           <label className="visually-hidden" htmlFor="chat-input">Your question</label>
-          <input id="chat-input" ref={inputRef} className="input" placeholder="Ask, or teach: “garba is entertainment”"
+          <input id="chat-input" ref={inputRef} className="input" placeholder="Ask or tell: “garba is entertainment”"
                  value={text} onChange={(e) => setText(e.target.value)} maxLength={500} />
-          <button className="btn btn-primary" disabled={busy || !text.trim()}>Ask</button>
+          <MicButton onText={setText} />
+          <button className="btn btn-primary" disabled={busy || !text.trim()}>Send</button>
         </form>
       </aside>
     </>
